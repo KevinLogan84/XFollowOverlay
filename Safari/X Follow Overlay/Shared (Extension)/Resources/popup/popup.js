@@ -1,14 +1,22 @@
 (function () {
   var api = typeof browser !== "undefined" ? browser : chrome;
+  var Sync = globalThis.XFOSyncState;
   var KEY_FIELDS = ["apiKey", "apiSecret", "accessToken", "accessSecret", "bearer"];
 
   var stepSignIn = document.getElementById("step-sign-in");
   var stepSync = document.getElementById("step-sync");
   var stepKeys = document.getElementById("step-keys");
   var syncStatus = document.getElementById("sync-status");
+  var syncAge = document.getElementById("sync-age");
+  var keysHint = document.getElementById("keys-hint");
   var keysStatus = document.getElementById("keys-status");
   var runSyncBtn = document.getElementById("run-sync");
   var form = document.getElementById("keys-form");
+  var signedIn = false;
+  var hasStoredSync = false;
+  var syncSnap = {};
+  var keyed = false;
+  var syncKick = false;
 
   function keysFromForm() {
     var data = {};
@@ -54,7 +62,7 @@
     return { signedIn: false, tabId: tabs.length ? tabs[0].id : null };
   }
 
-  async function storedKeys() {
+  async function storedState() {
     var data = await api.storage.local.get([
       "xApiKey",
       "xApiSecret",
@@ -64,7 +72,16 @@
       "xUserToken",
       "xBearerToken",
       "xApiUserToken",
-      "lastSyncAt"
+      "lastSyncAt",
+      "syncStatus",
+      "syncError",
+      "syncStartedAt",
+      "lastSyncProgressAt",
+      "syncProgressLabel",
+      "syncBackoffUntil",
+      "syncProgressCount",
+      "syncProgressSide",
+      "hideRateLimitKeysHint"
     ]);
     return {
       keys: {
@@ -74,7 +91,8 @@
         accessSecret: data.xAccessSecret || "",
         bearer: data.xApiBearer || data.xUserToken || data.xBearerToken || data.xApiUserToken || ""
       },
-      lastSyncAt: data.lastSyncAt || null
+      lastSyncAt: data.lastSyncAt || null,
+      sync: data
     };
   }
 
@@ -82,27 +100,92 @@
     el.classList.toggle("done", !!done);
   }
 
+  function renderSyncFace() {
+    var now = Date.now();
+    var ui = {
+      busy: false,
+      syncStatus: syncSnap.syncStatus,
+      syncStartedAt: syncSnap.syncStartedAt,
+      storedProgressAt: syncSnap.lastSyncProgressAt,
+      lastProgressAt: 0,
+      progressLabel: syncSnap.syncProgressLabel || "",
+      backoffUntil: syncSnap.syncBackoffUntil,
+      now: now
+    };
+    var syncing = syncKick || (Sync && Sync.showSyncing(ui));
+    var backingOff = !!(Sync && Sync.isBackoffPending && Sync.isBackoffPending(syncSnap.syncBackoffUntil, now));
+    if (syncing) {
+      var label = syncSnap.syncProgressLabel || "Syncing…";
+      if (backingOff && Sync && Sync.backoffStatusText) {
+        label = Sync.backoffStatusText({
+          resumeAt: Number(syncSnap.syncBackoffUntil),
+          now: now,
+          count: syncSnap.syncProgressCount,
+          side: syncSnap.syncProgressSide
+        });
+      }
+      syncStatus.textContent = label;
+      if (syncAge && Sync && Sync.lastUpdateText) {
+        syncAge.textContent = Sync.lastUpdateText(syncSnap.lastSyncProgressAt, now);
+      }
+      runSyncBtn.textContent = "Syncing…";
+      runSyncBtn.disabled = true;
+      runSyncBtn.classList.add("is-syncing");
+    } else {
+      runSyncBtn.classList.remove("is-syncing");
+      if (syncAge) syncAge.textContent = "";
+      if (!signedIn) {
+        syncStatus.textContent = "Sign in on x.com in this browser, then come back.";
+      } else if (!hasStoredSync) {
+        syncStatus.textContent = "Signed in. Run Sync on that tab.";
+      } else if (syncSnap.syncStatus === "error" && syncSnap.syncError) {
+        syncStatus.textContent = syncSnap.syncError;
+      } else {
+        syncStatus.textContent = "Last sync is saved on this device.";
+      }
+      var retry = Sync && Sync.isStuck(ui);
+      runSyncBtn.textContent = retry ? "Retry sync" : "Sync now";
+      runSyncBtn.disabled = !signedIn;
+    }
+    var showHint =
+      Sync &&
+      Sync.showRateLimitKeysHint &&
+      Sync.showRateLimitKeysHint({
+        backingOff: backingOff,
+        hasKeys: keyed,
+        dismissed: syncSnap.hideRateLimitKeysHint === true
+      });
+    if (keysHint) keysHint.hidden = !showHint;
+  }
+
   async function refresh() {
     var session = await findSession();
-    var stored = await storedKeys();
-    var keyed = hasKeys(stored.keys);
-    mark(stepSignIn, session.signedIn);
-    mark(stepSync, !!stored.lastSyncAt);
+    var stored = await storedState();
+    signedIn = session.signedIn;
+    hasStoredSync = !!stored.lastSyncAt;
+    keyed = hasKeys(stored.keys);
+    syncSnap = stored.sync || {};
+    mark(stepSignIn, signedIn);
+    mark(stepSync, hasStoredSync);
     mark(stepKeys, keyed);
-    runSyncBtn.disabled = !session.signedIn;
-    if (!session.signedIn) {
-      syncStatus.textContent = "Sign in on x.com in this browser, then come back.";
-    } else if (!stored.lastSyncAt) {
-      syncStatus.textContent = "Signed in. Run Sync on that tab.";
-    } else {
-      syncStatus.textContent = "Last sync is saved on this device.";
-    }
     if (keyed) keysStatus.textContent = "Keys are saved on this device only.";
     runSyncBtn.dataset.tabId = session.tabId ? String(session.tabId) : "";
+    renderSyncFace();
   }
 
   document.getElementById("open-x").addEventListener("click", function () {
     api.tabs.create({ url: "https://x.com" });
+  });
+
+  var readme = document.getElementById("keys-hint-readme");
+  if (readme && Sync && Sync.KEYS_HINT_README_URL) {
+    readme.href = Sync.KEYS_HINT_README_URL;
+  }
+
+  document.getElementById("keys-hint-hide").addEventListener("click", async function () {
+    syncSnap.hideRateLimitKeysHint = true;
+    if (keysHint) keysHint.hidden = true;
+    await api.storage.local.set({ hideRateLimitKeysHint: true });
   });
 
   runSyncBtn.addEventListener("click", async function () {
@@ -111,15 +194,21 @@
       syncStatus.textContent = "Open x.com and sign in first.";
       return;
     }
-    runSyncBtn.disabled = true;
+    syncKick = true;
+    renderSyncFace();
     syncStatus.textContent = "Starting Sync on your x.com tab…";
     try {
       await api.tabs.sendMessage(tabId, { type: "XFO_RUN_SYNC" });
-      syncStatus.textContent = "Sync started. Leave the x.com tab open.";
     } catch (e) {
+      syncKick = false;
       syncStatus.textContent = "Couldn’t reach x.com. Reload that tab and try again.";
+      runSyncBtn.classList.remove("is-syncing");
+      runSyncBtn.disabled = !signedIn;
+      runSyncBtn.textContent = "Sync now";
+      return;
     }
-    runSyncBtn.disabled = false;
+    syncKick = false;
+    refresh();
   });
 
   form.addEventListener("submit", async function (event) {
@@ -163,5 +252,32 @@
     refresh();
   });
 
+  if (api.storage && api.storage.onChanged) {
+    api.storage.onChanged.addListener(function (changes, area) {
+      if (area !== "local") return;
+      if (
+        changes.syncStatus ||
+        changes.syncProgressLabel ||
+        changes.lastSyncProgressAt ||
+        changes.syncBackoffUntil ||
+        changes.syncProgressCount ||
+        changes.syncProgressSide ||
+        changes.hideRateLimitKeysHint ||
+        changes.syncError ||
+        changes.lastSyncAt ||
+        changes.xApiKey ||
+        changes.xApiSecret ||
+        changes.xAccessToken ||
+        changes.xAccessSecret ||
+        changes.xApiBearer
+      ) {
+        refresh();
+      }
+    });
+  }
+
+  setInterval(function () {
+    if (syncKick || syncSnap.syncStatus === "syncing") renderSyncFace();
+  }, 1000);
   refresh();
 })();

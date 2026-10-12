@@ -28,8 +28,8 @@ xcodebuild \
   -destination "platform=macOS" \
   DEVELOPMENT_TEAM="$TEAM" \
   CODE_SIGN_STYLE=Automatic \
-  MARKETING_VERSION=1.2.1 \
-  CURRENT_PROJECT_VERSION=143 \
+  MARKETING_VERSION=1.2.3 \
+  CURRENT_PROJECT_VERSION=145 \
   build
 
 BUILT="$DERIVED/Build/Products/Release/$APP_NAME"

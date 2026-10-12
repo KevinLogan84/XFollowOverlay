@@ -417,7 +417,7 @@ function docFrom(map) {
   const manifest = JSON.parse(
     fs.readFileSync(path.join(__dirname, "../manifest.json"), "utf8")
   );
-  assert(content.includes('const XFO_VERSION = "1.2.1"'), "content version is 1.2.1");
+  assert(content.includes('const XFO_VERSION = "1.2.3"'), "content version is 1.2.3");
   assert(content.includes("collectFollowGraph"), "runSync uses collectFollowGraph");
   assert(content.includes("currentSyncRoute"), "runSync refuses to start without a session route");
   assert(content.includes("pageGraphql"), "content talks to the page hook");
@@ -429,7 +429,7 @@ function docFrom(map) {
   assert(hook.includes('d.type === "XFO_GQL"'), "page-hook accepts XFO_GQL commands");
   assert(hook.includes('d.type === "XFO_REST"'), "page-hook accepts XFO_REST commands");
   assert(hook.includes("x-client-transaction-id"), "page-hook documents the TID path");
-  assert(manifest.version === "1.2.1", "manifest version is 1.2.1");
+  assert(manifest.version === "1.2.3", "manifest version is 1.2.3");
   assert(
     !/if \(opts\.exhausted\) return membership > 0/.test(content),
     "content fallback keeps a sanity bound on exhausted REST lists"

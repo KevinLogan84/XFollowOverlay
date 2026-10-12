@@ -395,4 +395,184 @@ const t0 = 1_000_000;
   assert(Sync.displayFollowCount(542, new Array(521)) === 542, "display prefers the profile total");
 }
 
+{
+  const now = t0;
+  const fourTwelveMs = (4 * 60 + 12) * 1000;
+  const resumeAt = now + fourTwelveMs;
+  const countdown = Sync.backoffStatusText({
+    resumeAt: resumeAt,
+    now: now,
+    count: 1432,
+    side: "following"
+  });
+  assert(
+    countdown === "Waiting for x.com rate limit, resuming in 4:12 · 1432 following",
+    "countdown names x.com, the remaining clock, and the count so far"
+  );
+  assert(
+    Sync.isRateLimitWait({ progressLabel: countdown }) === true,
+    "countdown copy is a recognized rate-limit wait"
+  );
+  assert(
+    Sync.isRateLimitWait({ backoffUntil: resumeAt, now: now, progressLabel: "" }) === true,
+    "a future backoffUntil is a rate-limit wait without a label"
+  );
+  assert(Sync.isBackoffPending(resumeAt, now) === true, "future backoff is pending");
+  assert(Sync.isBackoffPending(now, now) === false, "a backoff that has arrived is not pending");
+  assert(
+    Sync.lastUpdateText(now - 12000, now) === "last update 12s ago",
+    "last-update hint counts whole seconds"
+  );
+  assert(Sync.lastUpdateText(now, now) === "last update 0s ago", "a fresh beat still shows 0s");
+  assert(Sync.lastUpdateText(0, now) === "", "no heartbeat has no last-update line");
+
+  const cursor = "cursor-1432";
+  const quiet = Sync.pageWatchdog({
+    now: now + 1000,
+    lastProgressAt: now,
+    cursor: cursor
+  });
+  assert(quiet.action === "ok" && quiet.cursor === cursor, "recent progress stays on the same cursor");
+
+  const backing = Sync.pageWatchdog({
+    now: now + Sync.WATCHDOG_SILENCE_MS + 1,
+    lastProgressAt: now,
+    backoffUntil: now + Sync.WATCHDOG_SILENCE_MS + 5000,
+    cursor: cursor
+  });
+  assert(
+    backing.action === "backoff" && backing.cursor === cursor,
+    "a pending rate-limit wait is not treated as silence"
+  );
+
+  const retry = Sync.pageWatchdog({
+    now: now + Sync.WATCHDOG_SILENCE_MS + 1,
+    lastProgressAt: now,
+    silentRetries: 0,
+    cursor: cursor
+  });
+  assert(
+    retry.action === "retry-page" && retry.cursor === cursor,
+    "the first silent page retries that same cursor"
+  );
+
+  const fail = Sync.pageWatchdog({
+    now: now + Sync.WATCHDOG_SILENCE_MS + 1,
+    lastProgressAt: now,
+    silentRetries: Sync.WATCHDOG_PAGE_RETRIES,
+    cursor: cursor
+  });
+  assert(fail.action === "fail" && fail.cursor === cursor, "a second silence fails without dropping the cursor");
+  assert(fail.message === Sync.STALL_ERROR, "the stall message tells the user the place is saved");
+
+  const forced = Sync.pageWatchdog({
+    forceSilent: true,
+    silentRetries: 0,
+    lastProgressAt: now,
+    now: now + 1000,
+    backoffUntil: resumeAt,
+    cursor: cursor
+  });
+  assert(
+    forced.action === "retry-page" && forced.cursor === cursor,
+    "a finished page timeout retries once even inside the silence window"
+  );
+  const forcedFail = Sync.pageWatchdog({
+    forceSilent: true,
+    silentRetries: 1,
+    cursor: cursor
+  });
+  assert(forcedFail.action === "fail" && forcedFail.cursor === cursor, "a second page timeout fails");
+
+  assert(
+    Sync.showRateLimitKeysHint({ backingOff: true, hasKeys: false, dismissed: false }) === true,
+    "keys hint shows while backing off without keys"
+  );
+  assert(
+    Sync.showRateLimitKeysHint({ backingOff: false, hasKeys: false, dismissed: false }) === false,
+    "keys hint stays hidden when sync is not backing off"
+  );
+  assert(
+    Sync.showRateLimitKeysHint({ backingOff: true, hasKeys: true, dismissed: false }) === false,
+    "keys hint stays hidden when API keys are already saved"
+  );
+  assert(
+    Sync.showRateLimitKeysHint({ backingOff: true, hasKeys: false, dismissed: true }) === false,
+    "Don't show again hides the keys hint"
+  );
+  assert(
+    Sync.KEYS_HINT_TEXT === "Want faster syncs? Add your own X API keys (paid, optional).",
+    "keys hint lead copy"
+  );
+  assert(Sync.KEYS_HINT_FREE_TEXT === "The free sync keeps working.", "keys hint says the free sync keeps working");
+  assert(Sync.KEYS_HINT_DISMISS_KEY === "hideRateLimitKeysHint", "dismiss flag is stored locally");
+  assert(Sync.KEYS_HINT_SETTINGS_HASH === "#optional-keys", "keys hint links to the optional keys section");
+  assert(
+    Sync.followSnapshot({ hideRateLimitKeysHint: true }).hideRateLimitKeysHint === true,
+    "snapshot keeps a local dismiss"
+  );
+  assert(
+    Sync.followSnapshot({ hideRateLimitKeysHint: "yes" }).hideRateLimitKeysHint === false,
+    "only an explicit true dismisses the hint"
+  );
+  assert(
+    Sync.FOLLOW_STORAGE_KEYS.indexOf("hideRateLimitKeysHint") !== -1,
+    "rail reads the dismiss flag"
+  );
+  assert(
+    Sync.FOLLOW_STORAGE_KEYS.indexOf("syncBackoffUntil") !== -1,
+    "rail reads the backoff deadline"
+  );
+}
+
+{
+  const content = fs.readFileSync(path.join(__dirname, "../content/content.js"), "utf8");
+  const popupJs = fs.readFileSync(path.join(__dirname, "../popup/popup.js"), "utf8");
+  const popupHtml = fs.readFileSync(path.join(__dirname, "../popup/popup.html"), "utf8");
+  const popupCss = fs.readFileSync(path.join(__dirname, "../popup/popup.css"), "utf8");
+  const railCss = fs.readFileSync(path.join(__dirname, "../content/styles.css"), "utf8");
+  const readme = fs.readFileSync(path.join(__dirname, "../README.md"), "utf8");
+  const sw = fs.readFileSync(path.join(__dirname, "../background/service-worker.js"), "utf8");
+  const hintBits = [Sync.KEYS_HINT_TEXT, Sync.KEYS_HINT_FREE_TEXT, "hideRateLimitKeysHint"];
+  hintBits.forEach((bit) => {
+    assert(content.includes(bit), "rail includes " + bit);
+    assert(popupHtml.includes(bit) || popupJs.includes(bit), "popup includes " + bit);
+  });
+  assert(
+    content.includes("Don't show again") || content.includes("Don\\'t show again"),
+    "rail includes Don't show again"
+  );
+  assert(popupHtml.includes("Don't show again"), "popup includes Don't show again");
+  assert(content.includes("showRateLimitKeysHint"), "rail uses showRateLimitKeysHint");
+  assert(content.includes("hasUserApiKeys"), "rail hides the hint when keys are present");
+  assert(popupJs.includes("showRateLimitKeysHint"), "popup uses showRateLimitKeysHint");
+  assert(popupJs.includes("hasUserApiKeys"), "popup hides the hint when keys are present");
+  assert(popupHtml.includes('id="optional-keys"'), "settings has an optional-keys anchor");
+  assert(popupHtml.includes('href="#optional-keys"'), "popup hint links to the optional keys section");
+  assert(popupHtml.includes(">README<"), "popup hint links to the README");
+  assert(readme.includes('<a id="optional-keys"></a>'), "README has an optional-keys anchor");
+  assert(readme.includes("last update 12s ago"), "troubleshooting explains the count-up timer");
+  assert(
+    readme.includes("Waiting for x.com rate limit, resuming in 4:10"),
+    "troubleshooting explains the rate-limit countdown"
+  );
+  assert(readme.includes(Sync.KEYS_HINT_TEXT), "troubleshooting includes the keys tip");
+  assert(readme.includes(Sync.KEYS_HINT_FREE_TEXT), "troubleshooting says the free sync keeps working");
+  assert(
+    readme.includes("2 minutes") && readme.includes("20 seconds"),
+    "troubleshooting names the silence retry and the page-timeout retry"
+  );
+  assert(readme.includes("Sync stalled on this page"), "troubleshooting names the stall error");
+  assert(sw.includes("XFO_OPEN_KEYS"), "service worker opens the optional keys section");
+  assert(content.includes("pageWatchdog"), "content asks the page watchdog before hanging");
+  assert(content.includes("resumeGraphqlCheckpoint"), "content resumes a saved GraphQL cursor");
+  assert(/@keyframes xfo-sync-pulse/.test(popupCss), "popup pulse keyframes exist");
+  assert(/animation:\s*xfo-sync-pulse 1\.2s/.test(popupCss), "popup pulse is about 1.2s");
+  assert(/prefers-reduced-motion:\s*reduce/.test(popupCss), "popup pulse respects reduced motion");
+  assert(/button\.is-syncing/.test(popupCss), "popup Syncing button takes the pulse class");
+  assert(/@keyframes xfo-sync-pulse/.test(railCss), "rail pulse keyframes exist");
+  assert(/\.xfo-rail-sync\.is-syncing/.test(railCss), "rail Sync button takes the pulse class");
+  assert(/prefers-reduced-motion:\s*reduce/.test(railCss), "rail pulse respects reduced motion");
+}
+
 console.log("All sync-state tests passed.");

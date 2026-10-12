@@ -22,8 +22,17 @@
         <p>Leave the x.com tab open. Large accounts take longer because x.com limits how fast a tab can read follows.</p>
         <button type="button" id="run-sync">Sync now</button>
         <p class="status" id="sync-status"></p>
+        <p class="keys-hint" id="keys-hint" hidden>
+          Want faster syncs? Add your own X API keys (paid, optional).
+          The free sync keeps working.
+          <a href="#optional-keys" id="keys-hint-settings">settings</a>
+          <a id="keys-hint-readme" target="_blank" rel="noopener">README</a>
+          <button type="button" id="keys-hint-hide">Don't show again</button>
+        </p>
+        <p class="status age" id="sync-age"></p>
       </li>
       <li id="step-keys">
+        <span id="optional-keys"></span>
         <div class="step-head"><span class="num">3</span> Add API keys <span class="optional">(optional)</span></div>
         <p>Keys from <a href="https://developer.x.com" target="_blank" rel="noopener">developer.x.com</a> sync large accounts faster. They stay in this browser. The download does not include any keys.</p>
         <form id="keys-form">
@@ -47,6 +56,7 @@
       <a href="mailto:kevinlogan@mail.grokbot.com">Feedback &amp; support</a>
     </p>
   </main>
+  <script src="../shared/sync-state.js"></script>
   <script src="../shared/x-api.js"></script>
   <script src="popup.js"></script>
 </body>

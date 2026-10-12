@@ -46,6 +46,7 @@ You can also open the extension’s toolbar button. It walks through the same th
 
 Big accounts sync slower. x.com limits how fast any signed-in tab can read follow lists. Leave the tab open. When X asks the extension to slow down, it waits and then continues.
 
+<a id="optional-keys"></a>
 ## Optional: your own API keys
 
 Keys are optional. They can sync a large account faster than the free tab.
@@ -61,6 +62,7 @@ Keys are stored only in this browser’s extension storage. They are not in the 
 
 - **Sync asks you to sign in.** Open x.com in this browser, sign in, and run Sync again. A saved sync from another account is not used.
 - **Sync sits on “Waiting for X rate limit”.** Leave the x.com tab open. That wait is X’s own limit. Large accounts hit it sooner.
+- **“last update 12s ago” counts seconds since sync last made progress.** A rate limit shows “Waiting for x.com rate limit, resuming in 4:10” and, if you have no API keys, “Want faster syncs? Add your own X API keys (paid, optional). The free sync keeps working.” A silent page is retried once after 2 minutes, or after 20 seconds when that request times out, and shows “Sync stalled on this page…” after one more wait of the same length. Your place in the list is saved.
 - **No dots.** In Safari, confirm the extension is on and x.com is allowed. In Chrome, confirm the extension is enabled and you loaded the folder that contains `manifest.json`. Then reload x.com.
 - **Safari does not list the extension.** Safari → Settings → Extensions. For a copy you built yourself, Safari’s Develop menu has **Allow Unsigned Extensions**.
 

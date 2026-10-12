@@ -61,14 +61,21 @@ async function expireOrphanSync() {
         "syncStatus",
         "syncStartedAt",
         "lastSyncProgressAt",
-        "syncProgressLabel"
+        "syncProgressLabel",
+        "syncBackoffUntil"
       ]),
       STORAGE_MS,
       "Read sync state"
     );
     if (state.syncStatus !== "syncing") return;
-    const beat = Number(state.lastSyncProgressAt) || Number(state.syncStartedAt) || 0;
     const now = Date.now();
+    const backoffUntil = Number(state.syncBackoffUntil) || 0;
+    if (backoffUntil > now) {
+      scheduleExpireCheck(backoffUntil - now + 1000);
+      return;
+    }
+    const beat = Number(state.lastSyncProgressAt) || Number(state.syncStartedAt) || 0;
+    const rateWait = /waiting for x(?:\.com)? rate limit/i;
     const expired = Sync
       ? Sync.shouldHardExpire(
           state.syncStatus,
@@ -79,7 +86,7 @@ async function expireOrphanSync() {
         )
       : !beat ||
         syncAgeMs(beat, now) >
-          (/waiting for x rate limit/i.test(String(state.syncProgressLabel || ""))
+          (rateWait.test(String(state.syncProgressLabel || ""))
             ? RATE_LIMIT_STUCK_MS
             : SYNC_HARD_MS);
     if (expired) {
@@ -87,7 +94,9 @@ async function expireOrphanSync() {
         api.storage.local.set({
           syncStatus: "error",
           syncError: TIMEOUT_ERROR,
-          syncStartedAt: null
+          syncStartedAt: null,
+          syncBackoffUntil: null,
+          syncProgressLabel: ""
         }),
         STORAGE_MS,
         "Expire sync"
@@ -96,7 +105,7 @@ async function expireOrphanSync() {
     }
     const limit = Sync && typeof Sync.hardMsFor === "function"
       ? Sync.hardMsFor({ progressLabel: state.syncProgressLabel })
-      : /waiting for x rate limit/i.test(String(state.syncProgressLabel || ""))
+      : /waiting for x(?:\.com)? rate limit/i.test(String(state.syncProgressLabel || ""))
         ? RATE_LIMIT_STUCK_MS
         : SYNC_HARD_MS;
     const age = syncAgeMs(beat, now);
@@ -119,6 +128,17 @@ if (api.runtime.onStartup) {
 }
 
 expireOrphanSync();
+
+if (api.runtime && api.runtime.onMessage) {
+  api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || !sender || sender.id !== api.runtime.id) return;
+    if (msg.type !== "XFO_OPEN_KEYS") return;
+    const hash = (Sync && Sync.KEYS_HINT_SETTINGS_HASH) || "#optional-keys";
+    const url = api.runtime.getURL("popup/popup.html") + hash;
+    api.tabs.create({ url: url });
+    if (sendResponse) sendResponse({ ok: true });
+  });
+}
 
 if (api.storage && api.storage.onChanged) {
   api.storage.onChanged.addListener((changes, area) => {

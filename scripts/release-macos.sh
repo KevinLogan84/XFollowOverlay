@@ -5,6 +5,9 @@
 set -euo pipefail
 
 PUBLISH=0
+# Public GitHub repo by default. Override to publish elsewhere:
+#   PUBLISH_REPO=other/repo scripts/release-macos.sh --publish
+PUBLISH_REPO="${PUBLISH_REPO:-KevinLogan84/XFollowOverlay}"
 for arg in "$@"; do
   case "$arg" in
     --publish) PUBLISH=1 ;;
@@ -12,6 +15,7 @@ for arg in "$@"; do
       echo "Usage: scripts/release-macos.sh [--publish]"
       echo "  Builds a notarized X-Follow-Overlay-macOS.zip."
       echo "  --publish   also run gh release create (off by default)."
+      echo "              Repo is \$PUBLISH_REPO (default KevinLogan84/XFollowOverlay)."
       exit 0
       ;;
     *)
@@ -31,8 +35,8 @@ PROJ="$ROOT/Safari/X Follow Overlay/X Follow Overlay.xcodeproj"
 SCHEME="X Follow Overlay (macOS)"
 TEAM="KVVL57G45T"
 IDENTITY="Developer ID Application: Kevin Logan (KVVL57G45T)"
-VERSION="1.2.1"
-BUILD="143"
+VERSION="1.2.3"
+BUILD="145"
 DIST="$ROOT/dist"
 ARCHIVE="$DIST/X Follow Overlay.xcarchive"
 EXPORT_DIR="$DIST/export"
@@ -115,7 +119,7 @@ echo "Release zip: $FINAL_ZIP"
 
 if [[ "$PUBLISH" == "1" ]]; then
   echo "==> Publishing GitHub release v${VERSION}..."
-  gh release create "v${VERSION}" --repo KevinLogan84/XFollowOverlay "$FINAL_ZIP" \
+  gh release create "v${VERSION}" --repo "$PUBLISH_REPO" "$FINAL_ZIP" \
     --title "X Follow Overlay ${VERSION}" \
     --notes "Free Mac build. Sign in on x.com and sync. API keys are optional and stay on your Mac."
 else

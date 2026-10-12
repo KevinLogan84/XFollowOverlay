@@ -11,8 +11,10 @@ function assert(cond, msg) {
 }
 
 const root = path.join(__dirname, "..");
+const Sync = require("../shared/sync-state.js");
 const SUPPORT = "kevinlogan@mail.grokbot.com";
 const MAILTO = "mailto:" + SUPPORT;
+const KEYS_README = Sync.KEYS_HINT_README_URL;
 
 function read(rel) {
   return fs.readFileSync(path.join(root, rel), "utf8");
@@ -50,7 +52,7 @@ assert(files.length > 10, "bundle scan found the extension files");
 
 files.forEach((rel) => {
   const raw = read(rel);
-  const stripped = raw.split(SUPPORT).join("");
+  const stripped = raw.split(SUPPORT).join("").split(KEYS_README).join("");
   assert(!/kevin/i.test(stripped), rel + " contains a personal kevin string");
   assert(!raw.includes("Kevin_Logan"), rel + " contains Kevin_Logan");
   assert(!/kevin_logan/i.test(raw), rel + " contains kevin_logan");
@@ -131,9 +133,16 @@ assert(content.includes("Sign in on x.com in this tab, then run Sync."), "sync r
 const appDelegate = read("Safari/X Follow Overlay/macOS (App)/AppDelegate.swift");
 assert(appDelegate.includes("disableAutomaticTermination"), "companion app refuses automatic termination");
 assert(appDelegate.includes("disableSuddenTermination"), "companion app refuses sudden termination");
+assert(appDelegate.includes("beginActivity"), "companion app holds a process activity while its window is open");
+assert(appDelegate.includes(".automaticTerminationDisabled"), "that activity disables automatic termination");
+assert(appDelegate.includes(".suddenTerminationDisabled"), "that activity disables sudden termination");
+assert(appDelegate.includes("endActivity"), "the activity is released when the user quits");
+assert(!appDelegate.includes("enableAutomaticTermination"), "nothing re-enables automatic termination");
+assert(!/show\(|evaluateJavaScript|WKWebView/.test(appDelegate), "staying alive does not run page JS");
 assert(appDelegate.includes("contentViewController is ViewController"), "companion styles its own setup window");
 assert(appDelegate.includes("makeKeyAndOrderFront"), "setup window is ordered front");
 assert(!/Timer|asyncAfter|exit\(/.test(appDelegate), "companion app has no delayed exit");
+assert(!appDelegate.includes("NSApp.terminate"), "the app delegate does not quit on its own");
 const macInfo = read("Safari/X Follow Overlay/macOS (App)/Info.plist");
 assert(
   /<key>NSSupportsAutomaticTermination<\/key>\s*<false\/>/.test(macInfo),
@@ -148,6 +157,22 @@ assert(!/Timer|asyncAfter|exit\(/.test(viewController), "view controller has no 
 assert(
   viewController.includes("webViewWebContentProcessDidTerminate"),
   "a dead web process reloads instead of leaving a blank window"
+);
+assert(viewController.includes("WKUIDelegate"), "the page cannot dismiss the window through WebKit UI");
+assert(viewController.includes("webViewDidClose"), "window.close from the page is ignored");
+assert(viewController.includes("window.close=function(){};"), "window.close is neutralized before page scripts");
+assert(viewController.includes("typeof show==='function'"), "a missing show() does not throw into the app");
+assert(viewController.includes("holdOpenForSetupWindow"), "a failed page re-arms the keep-alive");
+const terminates = viewController.match(/NSApp\.terminate/g) || [];
+assert(terminates.length === 1, "the app quits only when the user opens Safari settings");
+const pbx = read("Safari/X Follow Overlay/X Follow Overlay.xcodeproj/project.pbxproj");
+assert(
+  pbx.includes("INFOPLIST_KEY_NSSupportsAutomaticTermination = NO"),
+  "generated Mac Info.plist keeps automatic termination off"
+);
+assert(
+  pbx.includes("INFOPLIST_KEY_NSSupportsSuddenTermination = NO"),
+  "generated Mac Info.plist keeps sudden termination off"
 );
 const companionCss = read("Safari/X Follow Overlay/Shared (App)/Resources/Style.css");
 assert(/overflow:\s*auto/.test(companionCss), "companion page scrolls instead of clipping past the window");

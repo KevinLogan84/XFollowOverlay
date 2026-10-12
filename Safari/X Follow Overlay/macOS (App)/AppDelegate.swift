@@ -8,25 +8,68 @@ import Cocoa
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
 
+    /// Token from beginActivity. disableAutomaticTermination is only a counter:
+    /// one matching enable leaves the app eligible to quit again, with no crash
+    /// report. This activity stays for the life of the process until the user
+    /// quits, and it does not depend on the setup page running or painting.
+    private var lifetimeActivity: NSObjectProtocol?
+    private var windowStyleAttempts = 0
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Automatic termination quits an app AppKit considers unused. That
-        // exit has no crash report. The setup window is the app, so stay up.
-        ProcessInfo.processInfo.disableAutomaticTermination("Setup window is open")
-        ProcessInfo.processInfo.disableSuddenTermination()
+        holdOpenForSetupWindow()
         DispatchQueue.main.async {
             self.styleMainWindow()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        releaseSetupHold()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
 
+    /// Safe to call more than once. A blank page or a dead web process can call
+    /// this; it never asks the page whether it loaded.
+    func holdOpenForSetupWindow() {
+        if lifetimeActivity == nil {
+            let options: ProcessInfo.ActivityOptions = [
+                .userInitiatedAllowingIdleSystemSleep,
+                .automaticTerminationDisabled,
+                .suddenTerminationDisabled
+            ]
+            lifetimeActivity = ProcessInfo.processInfo.beginActivity(
+                options: options,
+                reason: "Setup window is open"
+            )
+        }
+        // Re-arm the counter. WebKit can balance a single disable when the
+        // web content process goes idle or dies. The transparent setup window
+        // is then the unused-window case, and AppKit quits in a few seconds.
+        ProcessInfo.processInfo.disableAutomaticTermination("Setup window is open")
+        ProcessInfo.processInfo.disableSuddenTermination()
+    }
+
+    private func releaseSetupHold() {
+        if let activity = lifetimeActivity {
+            lifetimeActivity = nil
+            ProcessInfo.processInfo.endActivity(activity)
+        }
+    }
+
     private func styleMainWindow() {
-        // windows.first can be a WebKit helper. Style the setup window.
-        guard let window = NSApp.windows.first(where: { $0.contentViewController is ViewController })
-            ?? NSApp.mainWindow
-            ?? NSApp.windows.first else { return }
+        holdOpenForSetupWindow()
+        // windows.first can be a WebKit helper. Wait for the setup window.
+        let setup = NSApp.windows.first(where: { $0.contentViewController is ViewController })
+        if setup == nil {
+            windowStyleAttempts += 1
+            if windowStyleAttempts < 8 {
+                DispatchQueue.main.async { self.styleMainWindow() }
+                return
+            }
+        }
+        guard let window = setup ?? NSApp.mainWindow ?? NSApp.windows.first else { return }
 
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
@@ -42,7 +85,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.setContentSize(size)
         window.minSize = NSSize(width: 360, height: 480)
         window.center()
+        window.alphaValue = 1
+        window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
 
         if let content = window.contentView {
             content.wantsLayer = true

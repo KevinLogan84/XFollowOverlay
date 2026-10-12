@@ -96,6 +96,44 @@
     return null;
   }
 
+  /**
+   * How long to sit on a 429. x-rate-limit-reset / Retry-After win.
+   * A known budget wait is next. Otherwise the default minute.
+   */
+  function backoffMsFromRateLimit(source, now) {
+    source = source || {};
+    var bag = {};
+    if (source.retryAfter != null && source.retryAfter !== "") {
+      bag.retryAfter = source.retryAfter;
+    }
+    if (source.rateLimitReset != null && source.rateLimitReset !== "") {
+      bag.rateLimitReset = source.rateLimitReset;
+    }
+    if (source.headers) {
+      var retryAfter = headerLookup(source.headers, "retry-after");
+      var reset = headerLookup(source.headers, "x-rate-limit-reset");
+      if (bag.retryAfter == null && retryAfter != null) bag.retryAfter = retryAfter;
+      if (bag.rateLimitReset == null && reset != null) bag.rateLimitReset = reset;
+    }
+    var hasHeader =
+      (bag.retryAfter != null && bag.retryAfter !== "") ||
+      (bag.rateLimitReset != null && bag.rateLimitReset !== "");
+    if (hasHeader) return waitMsFromRateLimitHeaders(bag, now);
+    var budget = Number(source.budgetWaitMs);
+    if (budget > 0) return clampWait(budget);
+    return waitMsFromRateLimitHeaders(bag, now);
+  }
+
+  function graphqlFollowVariables(userId, cursor, count) {
+    var variables = {
+      userId: String(userId),
+      count: count == null ? 100 : count,
+      includePromotedContent: false
+    };
+    if (cursor) variables.cursor = String(cursor);
+    return variables;
+  }
+
   function waitMsFromRateLimitHeaders(headers, now) {
     now = typeof now === "number" ? now : Date.now();
     headers = headers || {};
@@ -1070,6 +1108,8 @@
     isRestUnavailable: isRestUnavailable,
     canTryNextRestPath: canTryNextRestPath,
     waitMsFromRateLimitHeaders: waitMsFromRateLimitHeaders,
+    backoffMsFromRateLimit: backoffMsFromRateLimit,
+    graphqlFollowVariables: graphqlFollowVariables,
     estimateRestSyncRequests: estimateRestSyncRequests,
     asList: asList,
     numberOrNull: numberOrNull,

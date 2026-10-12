@@ -506,6 +506,44 @@ function mockClient(handler) {
   );
   assert(cpIds.ids.join(",") === "1,2", "checkpoint carries rest_ids so membership survives a resume");
   assert(Rest.MAX_GRAPHQL_429_WAITS === 2, "GraphQL fallback waits out at most two 429 windows");
+  const now429 = 1_700_000_000_000;
+  const fourTwelve = 4 * 60 + 12;
+  const resetSec = Math.floor(now429 / 1000) + fourTwelve;
+  const fromHeader = Rest.backoffMsFromRateLimit(
+    { headers: { "x-rate-limit-reset": String(resetSec) } },
+    now429
+  );
+  assert(fromHeader !== Rest.DEFAULT_429_WAIT_MS, "x-rate-limit-reset is not the default minute");
+  assert(
+    fromHeader >= fourTwelve * 1000 && fromHeader <= fourTwelve * 1000 + 1250,
+    "x-rate-limit-reset waits about 4:12 plus a small slack"
+  );
+  assert(
+    Rest.backoffMsFromRateLimit({ budgetWaitMs: 90000 }, now429) === 90000,
+    "a known budget wait is used when the reset header is missing"
+  );
+  const withCursor = Rest.graphqlFollowVariables("42", "cursor-1432", 100);
+  assert(withCursor.userId === "42" && withCursor.count === 100, "follow variables keep the account and page size");
+  assert(withCursor.cursor === "cursor-1432", "follow variables send the saved cursor");
+  const firstPage = Rest.graphqlFollowVariables("42", null, 100);
+  assert(!Object.prototype.hasOwnProperty.call(firstPage, "cursor"), "the first page omits an empty cursor");
+  const savedUsers = [];
+  for (let i = 0; i < 1432; i++) savedUsers.push("u" + i);
+  const deep = Rest.resumeGraphqlCheckpoint(
+    {
+      path: "graphql",
+      side: "Following",
+      userId: "42",
+      users: savedUsers,
+      ids: ["9"],
+      cursor: "cursor-1432",
+      updatedAt: Date.now()
+    },
+    "Following",
+    "42"
+  );
+  assert(deep && deep.cursor === "cursor-1432", "a deep crawl resumes at cursor-1432");
+  assert(deep.users.length === 1432, "a deep crawl keeps the 1432 accounts already read");
   assert(
     Rest.checkpointFresh({ updatedAt: Date.now() - Rest.CHECKPOINT_MAX_AGE_MS - 1 }) === false,
     "stale GraphQL checkpoint is ignored"

@@ -25,7 +25,8 @@ function openPreferences() {
     webkit.messageHandlers.controller.postMessage("open-preferences");
 }
 
-document.querySelector("button.open-preferences").addEventListener("click", openPreferences);
+var prefs = document.querySelector("button.open-preferences");
+if (prefs) prefs.addEventListener("click", openPreferences);
 
 var openX = document.querySelector("button.open-x");
 if (openX) {

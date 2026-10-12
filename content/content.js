@@ -6,7 +6,7 @@
  */
 
 (() => {
-  const XFO_VERSION = "1.2.1";
+  const XFO_VERSION = "1.2.3";
   if (window.__xfoVersion === XFO_VERSION) return;
   if (typeof window.__xfoCleanup === "function") {
     try {
@@ -293,6 +293,14 @@
   /** Whether the current metrics pause is X's rate limit (vs. our retry backoff). */
   let metricsPauseIsRateLimit = false;
   let syncBackoffUntil = 0;
+  let syncProgressCount = null;
+  let syncProgressSide = "";
+  let pageAbort = null;
+  let pageInFlightSince = 0;
+  let pageSilentRetries = 0;
+  let pageInFlightCursor = null;
+  let keysHintDismissed = false;
+  let userHasApiKeys = false;
   let metricsHold = true;
   /** Set when a kick is requested during sync; flushed after sync / next scan. */
   let pendingVisibleMetricsKick = false;
@@ -911,11 +919,39 @@
   /** Gap between free-session GraphQL pages. 429 waits are separate and longer. */
   async function politeSessionPause() {
     const gap = (Route && Route.SESSION_PAGE_GAP_MS) || 1200;
-    const end = Date.now() + gap;
-    while (Date.now() < end) {
-      throwIfSyncAborted();
-      await sleep(Math.min(250, end - Date.now()));
-    }
+    await sleepAwake(gap);
+    throwIfSyncAborted();
+  }
+
+  /**
+   * setTimeout is dropped when Safari freezes a background tab. On wake,
+   * finish immediately if the deadline already passed.
+   */
+  function sleepAwake(ms) {
+    const delay = Math.max(0, Number(ms) || 0);
+    const started = Date.now();
+    return new Promise((resolve) => {
+      let done = false;
+      const timer = setTimeout(finish, delay);
+      function finish() {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        document.removeEventListener("visibilitychange", onVis);
+        window.removeEventListener("pageshow", onVis);
+        resolve();
+      }
+      function onVis() {
+        if (document.visibilityState === "hidden") return;
+        if (Date.now() - started >= delay) finish();
+      }
+      document.addEventListener("visibilitychange", onVis);
+      window.addEventListener("pageshow", onVis);
+    });
+  }
+
+  function syncStillCurrent() {
+    return !!(syncAbort && syncAbort.signal && !syncAbort.signal.aborted);
   }
 
   function parseRetryAfterMs(res) {
@@ -1031,7 +1067,15 @@
         lastErr = err;
         if (!isRateLimitError(err && err.message)) throw err;
         if (attempt >= maxAttempts - 1) {
-          throw new Error(RATE_LIMIT_ERROR);
+          const wrapped = new Error(RATE_LIMIT_ERROR);
+          wrapped.status = (err && err.status) || 429;
+          if (err && typeof err === "object") {
+            wrapped.retryAfter = err.retryAfter;
+            wrapped.rateLimitReset = err.rateLimitReset;
+            wrapped.budgetWaitMs = err.budgetWaitMs;
+            wrapped.op = err.op;
+          }
+          throw wrapped;
         }
       }
     }
@@ -1218,7 +1262,10 @@
       if (!persistSyncProgress) return;
       storageSet({
         syncProgressLabel: syncProgressLabel,
-        lastSyncProgressAt: lastSyncProgressAt
+        lastSyncProgressAt: lastSyncProgressAt,
+        syncBackoffUntil: syncBackoffUntil || null,
+        syncProgressCount: syncProgressCount,
+        syncProgressSide: syncProgressSide || ""
       }).catch(() => {});
     }, 400);
   }
@@ -1340,7 +1387,7 @@
     });
   }
 
-  async function xGraphql(queryId, operationName, variables, features) {
+  async function xGraphql(queryId, operationName, variables, features, externalSignal) {
     const csrf = getCookie("ct0");
     if (!csrf) throw new Error("Not logged in on x.com.");
     if (!queryId || !operationName) {
@@ -1370,6 +1417,14 @@
       if (syncAbort && syncAbort.signal) {
         if (syncAbort.signal.aborted) throw new Error("Sync cancelled");
         syncAbort.signal.addEventListener("abort", onAbort, { once: true });
+      }
+      if (externalSignal) {
+        if (externalSignal.aborted) {
+          const stalled = new Error("page stalled");
+          stalled.pageStall = true;
+          throw stalled;
+        }
+        externalSignal.addEventListener("abort", onAbort, { once: true });
       }
 
       let res = null;
@@ -1445,9 +1500,18 @@
           .map((e) => (e && e.message) || "GraphQL error")
           .join("; ");
         if (isRateLimitError(msg)) {
-          if (allowSyncRetries) noteSyncBackoff(0);
-          else noteRateLimit(0, "X GQL 429");
-          throw new Error("X GQL 429: rate limited");
+          const err429 = new Error("X GQL 429: rate limited");
+          err429.status = 429;
+          err429.op = operationName;
+          err429.retryAfter =
+            res && res.headers && res.headers.get ? res.headers.get("retry-after") : null;
+          err429.rateLimitReset =
+            res && res.headers && res.headers.get
+              ? res.headers.get("x-rate-limit-reset")
+              : null;
+          if (allowSyncRetries) noteSyncBackoff(parseRetryAfterMs(res));
+          else noteRateLimit(rateLimitWaitFromError(err429), "X GQL 429");
+          throw err429;
         }
         const hasUser = json.data && json.data.user && json.data.user.result;
         if (!hasUser) throw new Error("X GQL: " + msg.slice(0, 160));
@@ -1671,19 +1735,52 @@
   };
   window.addEventListener("message", pageHookMessageHandler);
 
-  async function pageGraphql(queryId, operationName, variables, features, fieldToggles) {
+  async function pageGraphql(queryId, operationName, variables, features, fieldToggles, signal) {
+    if (signal && signal.aborted) {
+      const stalled = new Error(operationName + " stalled");
+      stalled.pageStall = true;
+      throw stalled;
+    }
     if (!(await waitForPageHook(2500))) {
       throw new Error("Page hook not ready");
     }
     const id = ++pageGqlSeq;
     return new Promise((resolve, reject) => {
+      let settled = false;
       const timer = setTimeout(() => {
-        pageGqlPending.delete(id);
-        reject(new Error(operationName + " timed out"));
+        const err = new Error(operationName + " timed out");
+        if (signal) err.pageStall = true;
+        fail(err);
       }, (Sync && Sync.FETCH_MS) || 20000);
+      function fail(err) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        pageGqlPending.delete(id);
+        if (signal) signal.removeEventListener("abort", onAbort);
+        reject(err);
+      }
+      function onAbort() {
+        const err = new Error(operationName + " stalled");
+        err.pageStall = true;
+        fail(err);
+      }
+      if (signal) {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
       pageGqlPending.set(id, {
-        resolve: resolve,
-        reject: reject,
+        resolve: function (value) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          if (signal) signal.removeEventListener("abort", onAbort);
+          resolve(value);
+        },
+        reject: fail,
         timer: timer,
         op: operationName
       });
@@ -1702,9 +1799,7 @@
           MSG_ORIGIN
         );
       } catch (e) {
-        clearTimeout(timer);
-        pageGqlPending.delete(id);
-        reject(e);
+        fail(e);
       }
     });
   }
@@ -1875,12 +1970,7 @@
         }
       },
       async wait(ms) {
-        const end = Date.now() + Math.max(0, ms || 0);
-        while (Date.now() < end) {
-          throwIfSyncAborted();
-          noteSyncProgress("Waiting for X rate limit…");
-          await sleep(Math.min(1000, end - Date.now()));
-        }
+        await waitOutBackoff(ms, syncProgressCount, syncProgressSide);
       },
       noteProgress(label) {
         noteSyncProgress(label);
@@ -1955,15 +2045,21 @@
     if (toggles) learnedGqlToggles[op] = toggles;
   }
 
-  async function graphqlFollow(queryId, operationName, variables, features, fieldToggles) {
+  async function graphqlFollow(queryId, operationName, variables, features, fieldToggles, signal) {
     const feats = learnedGqlFeatures[operationName] || features;
     const toggles = learnedGqlToggles[operationName] || fieldToggles;
     let lastErr = null;
     for (let attempt = 0; attempt < 3; attempt++) {
+      if (signal && signal.aborted) {
+        const stalled = new Error("page stalled");
+        stalled.pageStall = true;
+        throw stalled;
+      }
       try {
-        return await pageGraphql(queryId, operationName, variables, feats, toggles);
+        return await pageGraphql(queryId, operationName, variables, feats, toggles, signal);
       } catch (err) {
         lastErr = err;
+        if (err && err.pageStall) throw err;
         // X named a missing switch. Patch the contract and retry this call.
         // Any other HTTP answer is final — the isolated world would only
         // spend the window again.
@@ -1979,9 +2075,19 @@
         break;
       }
     }
+    if (signal && signal.aborted) {
+      const stalled = new Error("page stalled");
+      stalled.pageStall = true;
+      throw stalled;
+    }
     try {
-      return await xGraphql(queryId, operationName, variables, feats);
+      return await xGraphql(queryId, operationName, variables, feats, signal);
     } catch (err2) {
+      if ((signal && signal.aborted) || (err2 && err2.pageStall)) {
+        const stalled = new Error("page stalled");
+        stalled.pageStall = true;
+        throw stalled;
+      }
       throw lastErr || err2;
     }
   }
@@ -2220,6 +2326,123 @@
     }
   }
 
+  function backoffMsForError(err) {
+    const source = {
+      retryAfter: err && err.retryAfter,
+      rateLimitReset: err && err.rateLimitReset,
+      budgetWaitMs:
+        (err && Number(err.budgetWaitMs)) || rateLimitWaitFromError(err) || 0
+    };
+    if (FollowRest && typeof FollowRest.backoffMsFromRateLimit === "function") {
+      return FollowRest.backoffMsFromRateLimit(source, Date.now());
+    }
+    return 60000;
+  }
+
+  async function waitOutBackoff(waitMs, count, side) {
+    const ms = Math.max(0, Number(waitMs) || 0);
+    const end = Date.now() + ms;
+    syncBackoffUntil = end;
+    if (count != null) syncProgressCount = count;
+    if (side) syncProgressSide = side;
+    const label =
+      Sync && typeof Sync.backoffStatusText === "function"
+        ? Sync.backoffStatusText({
+            resumeAt: end,
+            now: Date.now(),
+            count: syncProgressCount,
+            side: syncProgressSide
+          })
+        : "Waiting for x.com rate limit…";
+    noteSyncProgress(label);
+    try {
+      await storageSet({
+        syncBackoffUntil: end,
+        syncProgressLabel: syncProgressLabel,
+        lastSyncProgressAt: lastSyncProgressAt,
+        syncProgressCount: syncProgressCount,
+        syncProgressSide: syncProgressSide || ""
+      });
+    } catch (e) {
+      /* the in-memory countdown still ticks */
+    }
+    try {
+      while (Date.now() < end) {
+        if (!syncStillCurrent()) throw new Error("Sync cancelled");
+        noteSyncProgress(
+          Sync && typeof Sync.backoffStatusText === "function"
+            ? Sync.backoffStatusText({
+                resumeAt: end,
+                now: Date.now(),
+                count: syncProgressCount,
+                side: syncProgressSide
+              })
+            : label
+        );
+        const left = end - Date.now();
+        if (left <= 0) break;
+        await sleepAwake(Math.min(1000, left));
+      }
+    } finally {
+      syncBackoffUntil = 0;
+      storageSet({ syncBackoffUntil: null }).catch(() => {});
+    }
+  }
+
+  function abortInFlightPage() {
+    const ctrl = pageAbort;
+    if (!ctrl) return;
+    try {
+      ctrl.abort();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function checkPageWatchdog() {
+    if (!pageInFlightSince || !pageAbort) return;
+    if (!Sync || typeof Sync.pageWatchdog !== "function") return;
+    const decision = Sync.pageWatchdog({
+      now: Date.now(),
+      lastProgressAt: pageInFlightSince,
+      backoffUntil: syncBackoffUntil,
+      silentRetries: pageSilentRetries,
+      cursor: pageInFlightCursor
+    });
+    if (decision.action === "retry-page" || decision.action === "fail") {
+      abortInFlightPage();
+    }
+  }
+
+  async function fetchFollowPage(queryId, op, variables, cursor) {
+    const ctrl = new AbortController();
+    pageAbort = ctrl;
+    pageInFlightSince = Date.now();
+    pageInFlightCursor = cursor || null;
+    const onSyncAbort = () => abortInFlightPage();
+    if (syncAbort && syncAbort.signal) {
+      if (syncAbort.signal.aborted) ctrl.abort();
+      else syncAbort.signal.addEventListener("abort", onSyncAbort, { once: true });
+    }
+    try {
+      return await graphqlFollow(
+        queryId,
+        op,
+        variables,
+        FOLLOW_GRAPHQL_FEATURES,
+        undefined,
+        ctrl.signal
+      );
+    } finally {
+      if (syncAbort && syncAbort.signal) {
+        syncAbort.signal.removeEventListener("abort", onSyncAbort);
+      }
+      if (pageAbort === ctrl) pageAbort = null;
+      pageInFlightSince = 0;
+      pageInFlightCursor = null;
+    }
+  }
+
   async function paginateFollowGraph(operationName, userId, checkpoint) {
     const op = operationName === "Following" ? "Following" : "Followers";
     const queryId = gqlIds[op];
@@ -2238,54 +2461,77 @@
     let rateWaits = 0;
     const maxRateWaits =
       (FollowRest && Number(FollowRest.MAX_GRAPHQL_429_WAITS)) || 2;
+    pageSilentRetries = 0;
 
     while (pages < maxPages) {
-      throwIfSyncAborted();
-      noteSyncProgress(
-        "Syncing " + op.toLowerCase() + "… " + users.length
-      );
-      const variables = {
-        userId: String(userId),
-        count: 100,
-        includePromotedContent: false
-      };
-      if (cursor) variables.cursor = cursor;
+      if (!syncStillCurrent()) throw new Error("Sync cancelled");
+      syncProgressCount = users.length;
+      syncProgressSide = op.toLowerCase();
+      noteSyncProgress("Syncing " + syncProgressSide + "… " + users.length);
+      // Save the cursor before the request so a frozen tab can resume here.
+      await writeGraphqlCheckpoint(op, userId, users, cursor, ids);
+      const variables =
+        FollowRest && typeof FollowRest.graphqlFollowVariables === "function"
+          ? FollowRest.graphqlFollowVariables(userId, cursor, 100)
+          : {
+              userId: String(userId),
+              count: 100,
+              includePromotedContent: false
+            };
+      if (cursor && !variables.cursor) variables.cursor = cursor;
 
       let data;
       try {
-        data = await graphqlFollow(queryId, op, variables, FOLLOW_GRAPHQL_FEATURES);
+        data = await fetchFollowPage(queryId, op, variables, cursor);
+        pageSilentRetries = 0;
       } catch (err) {
         const msg = err && err.message ? err.message : String(err);
         const status = err && err.status;
+        if (!syncStillCurrent() || /cancelled/i.test(msg)) throw err;
+        if (err && (err.pageStall || /stalled|timed out/i.test(msg))) {
+          const decision =
+            Sync && typeof Sync.pageWatchdog === "function"
+              ? Sync.pageWatchdog({
+                  now: Date.now(),
+                  lastProgressAt: 0,
+                  backoffUntil: 0,
+                  silentRetries: pageSilentRetries,
+                  forceSilent: true,
+                  cursor: cursor
+                })
+              : {
+                  action: pageSilentRetries > 0 ? "fail" : "retry-page",
+                  cursor: cursor,
+                  message: (Sync && Sync.STALL_ERROR) || "Sync stalled on this page."
+                };
+          if (decision.action !== "retry-page" || (decision.cursor && decision.cursor !== cursor)) {
+            await writeGraphqlCheckpoint(op, userId, users, cursor, ids);
+            throw new Error(
+              decision.message ||
+                (Sync && Sync.STALL_ERROR) ||
+                "Sync stalled on this page."
+            );
+          }
+          pageSilentRetries += 1;
+          noteSyncProgress("Retrying " + op.toLowerCase() + "… " + users.length);
+          continue;
+        }
         if (status === 429 || /429|rate.?limit/i.test(msg)) {
           rateWaits += 1;
           // Checkpoint first: the next sync resumes here even if we give up.
           await writeGraphqlCheckpoint(op, userId, users, cursor, ids);
-          if (rateWaits > maxRateWaits) throw err;
-          const waitMs = FollowRest
-            ? FollowRest.waitMsFromRateLimitHeaders({
-                retryAfter: err.retryAfter,
-                rateLimitReset: err.rateLimitReset
-              })
-            : 60000;
-          noteSyncProgress("Waiting for X rate limit…");
-          const end = Date.now() + waitMs;
-          while (Date.now() < end) {
-            throwIfSyncAborted();
-            noteSyncProgress("Waiting for X rate limit…");
-            await sleep(Math.min(1000, end - Date.now()));
+          if (rateWaits > maxRateWaits) {
+            const giveUp = new Error(RATE_LIMIT_ERROR);
+            giveUp.status = 429;
+            throw giveUp;
           }
+          await waitOutBackoff(backoffMsForError(err), users.length, op.toLowerCase());
           continue;
         }
         if (/404|422|QueryId|query.?id|unsupported/i.test(msg) && pages === 0) {
           await refreshGraphqlIdsFromPage();
           const retryId = gqlIds[op];
-          data = await graphqlFollow(
-            retryId,
-            op,
-            variables,
-            FOLLOW_GRAPHQL_FEATURES
-          );
+          data = await fetchFollowPage(retryId, op, variables, cursor);
         } else {
           throw err;
         }
@@ -2294,6 +2540,7 @@
       const parsed = walkGraphqlUsers(data);
       for (let i = 0; i < parsed.users.length; i++) users.push(parsed.users[i]);
       for (let r = 0; r < (parsed.ids || []).length; r++) ids.push(parsed.ids[r]);
+      syncProgressCount = users.length;
       noteSyncProgress(
         "Syncing " + op.toLowerCase() + "… " + users.length
       );
@@ -2780,6 +3027,9 @@
         syncNote: result.syncNote || "",
         syncProgressLabel: "",
         lastSyncProgressAt: null,
+        syncBackoffUntil: null,
+        syncProgressCount: null,
+        syncProgressSide: "",
         followListReuse: {
           following: !!result.followingReused,
           followers: !!result.followersReused
@@ -2861,13 +3111,17 @@
         ? (Sync && Sync.TIMEOUT_ERROR) || raw
         : raw;
       try {
-        await storageSet(
+        const patch =
           (Sync && Sync.expirePatch(message)) || {
             syncStatus: "error",
             syncError: message,
             syncStartedAt: null
-          }
-        );
+          };
+        patch.syncBackoffUntil = null;
+        patch.syncProgressLabel = "";
+        patch.lastSyncProgressAt = null;
+        syncBackoffUntil = 0;
+        await storageSet(patch);
       } catch (eStore) {
         /* still return the error to the rail */
       }
@@ -2914,12 +3168,18 @@
   }
 
   async function recoverStuckSync() {
+    checkPageWatchdog();
     const hardMs =
       Sync && typeof Sync.hardMsFor === "function"
-        ? Sync.hardMsFor({ progressLabel: syncProgressLabel })
+        ? Sync.hardMsFor({
+            progressLabel: syncProgressLabel,
+            backoffUntil: syncBackoffUntil,
+            now: Date.now()
+          })
         : SYNC_HARD_TIMEOUT_MS;
     if (
       syncInFlight &&
+      !(syncBackoffUntil > Date.now()) &&
       Date.now() - (lastSyncProgressAt || syncStartedAtLocal) > hardMs
     ) {
       abortSyncRun();
@@ -2957,6 +3217,15 @@
     }
   }
 
+  function onSyncWake() {
+    if (document.visibilityState === "hidden") return;
+    checkPageWatchdog();
+    const panel = railPanelHost || document.getElementById("xfo-rail-panel");
+    if (panel && panel.classList.contains("xfo-open")) {
+      refreshRailPanel(panel).catch(() => {});
+    }
+  }
+
   function startSyncWatchdog() {
     if (syncWatchdogTimer) return;
     syncWatchdogTimer = setInterval(() => {
@@ -2964,6 +3233,11 @@
       const panel = railPanelHost || document.getElementById("xfo-rail-panel");
       if (panel && panel.classList.contains("xfo-open")) refreshRailPanel(panel).catch(() => {});
     }, 1000);
+    if (!window.__xfoSyncWake) {
+      window.__xfoSyncWake = true;
+      document.addEventListener("visibilitychange", onSyncWake);
+      window.addEventListener("pageshow", onSyncWake);
+    }
   }
 
   function extractUsernameFromHref(href) {
@@ -5248,6 +5522,38 @@
           ? snap.followersTotal
           : followersList.length;
     const syncing = snap.syncStatus === "syncing";
+    try {
+      const keys = await readStoredApiKeys();
+      userHasApiKeys = !!(
+        XApi &&
+        typeof XApi.hasUserApiKeys === "function" &&
+        XApi.hasUserApiKeys(keys)
+      );
+    } catch (eKeys) {
+      /* keep the last answer so a storage hiccup does not flash the hint */
+    }
+    if (snap.hideRateLimitKeysHint === true) keysHintDismissed = true;
+    ensureSyncStatusExtras(panel);
+    const now = Date.now();
+    const backoffUntil = syncInFlight
+      ? syncBackoffUntil
+      : Number(snap.syncBackoffUntil) || 0;
+    const countForStatus = syncInFlight ? syncProgressCount : snap.syncProgressCount;
+    const sideForStatus = syncInFlight ? syncProgressSide : snap.syncProgressSide;
+    let liveLabel =
+      (syncInFlight && syncProgressLabel) || snap.syncProgressLabel || "";
+    if (
+      Sync &&
+      typeof Sync.backoffStatusText === "function" &&
+      backoffUntil > now
+    ) {
+      liveLabel = Sync.backoffStatusText({
+        resumeAt: backoffUntil,
+        now: now,
+        count: countForStatus,
+        side: sideForStatus
+      });
+    }
     const ui = {
       busy: !!syncInFlight,
       busySince: syncStartedAtLocal,
@@ -5257,9 +5563,9 @@
       storedProgressAt: snap.lastSyncProgressAt,
       syncStatus: snap.syncStatus,
       syncStartedAt: snap.syncStartedAt,
-      progressLabel:
-        (syncInFlight && syncProgressLabel) || snap.syncProgressLabel || "",
-      now: Date.now()
+      progressLabel: liveLabel,
+      backoffUntil: backoffUntil,
+      now: now
     };
     const stuck = Sync
       ? Sync.isStuck(ui)
@@ -5285,15 +5591,13 @@
       const text = activityStatusText(Date.now());
       if (activityEl.textContent !== text) activityEl.textContent = text;
     }
+    const showLive =
+      Sync && typeof Sync.showSyncing === "function"
+        ? Sync.showSyncing(ui)
+        : (syncInFlight || syncing) && !stuck;
     if (errEl) {
-      const showLive =
-        Sync && typeof Sync.showSyncing === "function"
-          ? Sync.showSyncing(ui)
-          : (syncInFlight || syncing) && !stuck;
-      const liveLabel =
-        (syncInFlight && syncProgressLabel) || snap.syncProgressLabel || "";
       const liveText = showLive
-        ? liveLabel || snap.syncError || "Syncing follow lists…"
+        ? ui.progressLabel || snap.syncError || "Syncing follow lists…"
         : "";
       const empty =
         Sync && typeof Sync.showEmptyFollowBanner === "function"
@@ -5332,10 +5636,39 @@
         errEl.textContent = "";
       }
     }
+    const ageEl = panel.querySelector("[data-xfo-age]");
+    if (ageEl) {
+      const beat =
+        Sync && typeof Sync.lastProgressAt === "function" ? Sync.lastProgressAt(ui) : 0;
+      const ageText =
+        showLive && Sync && typeof Sync.lastUpdateText === "function"
+          ? Sync.lastUpdateText(beat, now)
+          : "";
+      ageEl.hidden = !ageText;
+      ageEl.textContent = ageText;
+    }
+    const hintEl = panel.querySelector("[data-xfo-keys-hint]");
+    if (hintEl) {
+      const showHint =
+        Sync && typeof Sync.showRateLimitKeysHint === "function"
+          ? Sync.showRateLimitKeysHint({
+              backingOff: backoffUntil > now,
+              hasKeys: userHasApiKeys,
+              dismissed: keysHintDismissed || snap.hideRateLimitKeysHint === true
+            })
+          : false;
+      hintEl.hidden = !showHint;
+      const readme = hintEl.querySelector("[data-xfo-keys-readme]");
+      if (readme && Sync && Sync.KEYS_HINT_README_URL) {
+        readme.href = Sync.KEYS_HINT_README_URL;
+      }
+    }
     if (syncBtn) {
       const label = Sync ? Sync.buttonText(ui) : stuck ? "Retry sync" : syncing ? "Syncing…" : "Sync now";
+      const pulsing = !!(Sync && Sync.showSyncing(ui));
       syncBtn.disabled = Sync ? Sync.buttonDisabled(ui) : syncing && !stuck;
       syncBtn.textContent = label;
+      syncBtn.classList.toggle("is-syncing", pulsing);
     }
   }
 
@@ -5648,6 +5981,14 @@
         '<div class="xfo-rail-row"><span class="xfo-rail-label">Followers</span><span class="xfo-rail-value" data-xfo-followers>0</span></div>' +
         '<div class="xfo-rail-row"><span class="xfo-rail-label">Last sync</span><span class="xfo-rail-value" data-xfo-last>Never</span></div>' +
         '<p class="xfo-rail-err" data-xfo-err hidden></p>' +
+        '<p class="xfo-keys-hint" data-xfo-keys-hint hidden>' +
+        "Want faster syncs? Add your own X API keys (paid, optional). " +
+        "The free sync keeps working. " +
+        '<a href="#" data-xfo-open-keys>settings</a> ' +
+        '<a data-xfo-keys-readme target="_blank" rel="noopener">README</a> ' +
+        '<button type="button" class="xfo-keys-hint-hide" data-xfo-hide-keys-hint>Don\'t show again</button>' +
+        "</p>" +
+        '<p class="xfo-rail-age" data-xfo-age hidden></p>' +
         '<button type="button" class="xfo-rail-sync" data-xfo-sync>Sync now</button>' +
         "</section>" +
         railThemeControlHTML() +
@@ -5677,7 +6018,81 @@
       document.body.appendChild(panel);
     }
     ensureRailThemeChrome(panel);
+    ensureSyncStatusExtras(panel);
     return panel;
+  }
+
+  function keysHintMarkup() {
+    return (
+      '<p class="xfo-keys-hint" data-xfo-keys-hint hidden>' +
+      "Want faster syncs? Add your own X API keys (paid, optional). " +
+      "The free sync keeps working. " +
+      '<a href="#" data-xfo-open-keys>settings</a> ' +
+      '<a data-xfo-keys-readme target="_blank" rel="noopener">README</a> ' +
+      '<button type="button" class="xfo-keys-hint-hide" data-xfo-hide-keys-hint>Don\'t show again</button>' +
+      "</p>"
+    );
+  }
+
+  function wireKeysHint(panel) {
+    if (!panel || panel.dataset.xfoKeysHintWired === "1") return;
+    panel.addEventListener(
+      "click",
+      (e) => {
+        const target =
+          e.target && e.target.nodeType === 1
+            ? e.target
+            : e.target && e.target.parentElement;
+        if (!target || !target.closest) return;
+        const hide = target.closest("[data-xfo-hide-keys-hint]");
+        const open = target.closest("[data-xfo-open-keys]");
+        if (!hide && !open) return;
+        e.preventDefault();
+        e.stopPropagation();
+        ignoreRailCloseUntil = Date.now() + 800;
+        if (hide) {
+          keysHintDismissed = true;
+          const hint = panel.querySelector("[data-xfo-keys-hint]");
+          if (hint) hint.hidden = true;
+          storageSet({ hideRateLimitKeysHint: true }).catch(() => {});
+          return;
+        }
+        if (api.runtime && api.runtime.sendMessage) {
+          api.runtime.sendMessage({ type: "XFO_OPEN_KEYS" }).catch(() => {});
+        }
+      },
+      true
+    );
+    panel.dataset.xfoKeysHintWired = "1";
+  }
+
+  function ensureSyncStatusExtras(panel) {
+    if (!panel) return;
+    const err = panel.querySelector("[data-xfo-err]");
+    if (!panel.querySelector("[data-xfo-keys-hint]")) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = keysHintMarkup();
+      const hint = wrap.firstElementChild;
+      if (hint) {
+        if (err && err.parentNode) err.parentNode.insertBefore(hint, err.nextSibling);
+        else panel.appendChild(hint);
+      }
+    }
+    if (!panel.querySelector("[data-xfo-age]")) {
+      const age = document.createElement("p");
+      age.className = "xfo-rail-age";
+      age.setAttribute("data-xfo-age", "");
+      age.hidden = true;
+      const hint = panel.querySelector("[data-xfo-keys-hint]");
+      const anchor = hint || err;
+      if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(age, anchor.nextSibling);
+      else panel.appendChild(age);
+    }
+    const readme = panel.querySelector("[data-xfo-keys-readme]");
+    if (readme && Sync && Sync.KEYS_HINT_README_URL) {
+      readme.href = Sync.KEYS_HINT_README_URL;
+    }
+    wireKeysHint(panel);
   }
 
   function ensureSidebarRail() {
@@ -5841,16 +6256,20 @@
       const stale = await storageGet([
         "syncStatus",
         "syncStartedAt",
-        "lastSyncProgressAt"
+        "lastSyncProgressAt",
+        "syncBackoffUntil",
+        "hideRateLimitKeysHint"
       ]);
+      if (stale.hideRateLimitKeysHint === true) keysHintDismissed = true;
       // A sync dies with its page, so a "syncing" marker older than the
       // stuck window is an orphan. Reset it quietly — waiting the full
       // hard timeout left the panel on "Retry sync" for minutes after a
       // reload. The window still protects a just-clicked sync.
+      // A live x-rate-limit-reset is not an orphan: the countdown is still real.
       if (Sync && Sync.isSyncing(stale.syncStatus)) {
         const beat = stale.lastSyncProgressAt || stale.syncStartedAt;
         const age = Sync.ageMs(beat, Date.now());
-        if (age > Sync.STUCK_MS) {
+        if (age > Sync.STUCK_MS && !(Number(stale.syncBackoffUntil) > Date.now())) {
           await storageSet({
             syncStatus: null,
             syncError: null,

@@ -16,10 +16,17 @@ typealias PlatformViewController = NSViewController
 
 let extensionBundleIdentifier = "com.kevinlogan.xfollowoverlay.Extension"
 
-class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMessageHandler {
+class ViewController: PlatformViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
 
     @IBOutlet var webView: WKWebView!
     private var webProcessReloads = 0
+    /// Neutralize window.close() before page scripts run. Closing this window
+    /// quits the app, and a script error must not be able to do that.
+    private let pageCloseBlocker = WKUserScript(
+        source: "window.close=function(){};",
+        injectionTime: .atDocumentStart,
+        forMainFrameOnly: true
+    )
 
 #if os(macOS)
     private var vibrancyView: NSVisualEffectView?
@@ -33,6 +40,13 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMess
 #endif
 
         self.webView.navigationDelegate = self
+        self.webView.uiDelegate = self
+
+#if os(macOS)
+        (NSApp.delegate as? AppDelegate)?.holdOpenForSetupWindow()
+#endif
+
+        self.webView.configuration.userContentController.addUserScript(pageCloseBlocker)
 
 #if os(iOS)
         self.webView.scrollView.isScrollEnabled = false
@@ -76,30 +90,58 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMess
 #endif
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        // A dead web process leaves a blank transparent window. Reload it
-        // instead of letting that empty window sit until the app is quit.
+        // A dead web process leaves a blank transparent window. That used to
+        // be enough for AppKit to quit the app with no crash report. Stay up,
+        // and reload a few times so the setup page can come back.
+        notePageFailure()
         guard webProcessReloads < 3 else { return }
         webProcessReloads += 1
         webView.reload()
     }
 
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        notePageFailure()
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        notePageFailure()
+    }
+
+    func webViewDidClose(_ webView: WKWebView) {
+        // Ignore window.close() from the page. The native hold keeps the process up.
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
 #if os(iOS)
-        webView.evaluateJavaScript("show('ios')")
+        callPageShow("'ios'")
 #elseif os(macOS)
-        webView.evaluateJavaScript("show('mac')")
+        callPageShow("'mac'")
 
         SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: extensionBundleIdentifier) { (state, error) in
             guard let state = state, error == nil else { return }
 
             DispatchQueue.main.async {
                 if #available(macOS 13, *) {
-                    webView.evaluateJavaScript("show('mac', \(state.isEnabled), true)")
+                    self.callPageShow("'mac', \(state.isEnabled), true")
                 } else {
-                    webView.evaluateJavaScript("show('mac', \(state.isEnabled), false)")
+                    self.callPageShow("'mac', \(state.isEnabled), false")
                 }
             }
         }
+#endif
+    }
+
+    /// A missing or throwing show() is a page bug, not a reason to quit.
+    private func callPageShow(_ argumentList: String) {
+        webView.evaluateJavaScript(
+            "typeof show==='function'&&show(\(argumentList))",
+            completionHandler: nil
+        )
+    }
+
+    private func notePageFailure() {
+#if os(macOS)
+        (NSApp.delegate as? AppDelegate)?.holdOpenForSetupWindow()
 #endif
     }
 

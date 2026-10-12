@@ -97,6 +97,27 @@ button, .quiet {
 
 button:disabled { opacity: 0.45; cursor: default; }
 
+@keyframes xfo-sync-pulse {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: 0.72; filter: brightness(1.18); }
+}
+
+button.is-syncing {
+  animation: xfo-sync-pulse 1.2s ease-in-out infinite;
+}
+
+button.is-syncing:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.is-syncing,
+  button.is-syncing:disabled {
+    animation: none;
+  }
+}
+
 button.quiet {
   background: transparent;
   color: var(--muted);
@@ -124,6 +145,34 @@ input {
 .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 
 .status { min-height: 1em; }
+
+.status.age {
+  min-height: 0;
+  margin-top: 2px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.keys-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.keys-hint[hidden] { display: none; }
+
+.keys-hint button {
+  display: inline;
+  width: auto;
+  margin: 0 0 0 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 450;
+  text-decoration: underline;
+}
 
 a { color: var(--btn); }
 
