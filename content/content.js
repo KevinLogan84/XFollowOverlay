@@ -6,7 +6,7 @@
  */
 
 (() => {
-  const XFO_VERSION = "1.2.3";
+  const XFO_VERSION = "1.2.4";
   if (window.__xfoVersion === XFO_VERSION) return;
   if (typeof window.__xfoCleanup === "function") {
     try {

@@ -177,4 +177,84 @@ assert(
 const companionCss = read("Safari/X Follow Overlay/Shared (App)/Resources/Style.css");
 assert(/overflow:\s*auto/.test(companionCss), "companion page scrolls instead of clipping past the window");
 
+// User-facing links go to the public repo. Zip names and other dev strings
+// that mention X-Follow-Overlay without being a link stay as they are.
+const PUBLIC_KEYS_URL =
+  "https://github.com/KevinLogan84/XFollowOverlay/blob/main/README.md#optional-keys";
+const PUBLIC_RELEASE_URL = "https://github.com/KevinLogan84/XFollowOverlay/releases/latest";
+function privateRepoLinks(text) {
+  const re =
+    /(?:\[[^\]]*\]\(\s*|\bhref\s*=\s*["']|https?:\/\/)[^\s"'<>)\]]*KevinLogan84\/X-Follow-Overlay\b/gi;
+  return text.match(re) || [];
+}
+
+assert(
+  privateRepoLinks("[Download](https://github.com/KevinLogan84/X-Follow-Overlay/releases/latest)").length === 1,
+  "detector catches a markdown link to the private repo"
+);
+assert(
+  privateRepoLinks('href="https://github.com/KevinLogan84/X-Follow-Overlay/blob/main/README.md"').length === 1,
+  "detector catches an href to the private repo"
+);
+assert(
+  privateRepoLinks('FINAL_ZIP="$DIST/X-Follow-Overlay-macOS.zip"').length === 0,
+  "detector ignores the release zip name"
+);
+assert(
+  privateRepoLinks("PUBLISH_REPO=${PUBLISH_REPO:-KevinLogan84/XFollowOverlay}").length === 0,
+  "detector ignores the publish repo default"
+);
+
+function walkShipped(dir, out) {
+  fs.readdirSync(dir, { withFileTypes: true }).forEach((ent) => {
+    if (ent.name === ".git" || ent.name === ".DS_Store") return;
+    const abs = path.join(dir, ent.name);
+    const rel = path.relative(root, abs).split(path.sep).join("/");
+    if (rel === "docs/private" || rel.startsWith("docs/private/")) return;
+    if (ent.isDirectory()) {
+      walkShipped(abs, out);
+      return;
+    }
+    if (/^scripts\/test-.*\.js$/.test(rel)) return;
+    if (/\.(png|jpg|jpeg|webp|gif|icns|pdf|zip)$/i.test(rel)) return;
+    out.push(rel);
+  });
+}
+
+const shipped = [];
+walkShipped(root, shipped);
+assert(shipped.length > 20, "shipped scan found the repo files");
+[
+  "README.md",
+  "shared/sync-state.js",
+  "Safari/X Follow Overlay/Shared (Extension)/Resources/shared/sync-state.js",
+  "popup/popup.html",
+  "popup/popup.js",
+  "content/content.js",
+  "Safari/X Follow Overlay/Shared (App)/Resources/Base.lproj/Main.html"
+].forEach((rel) => {
+  assert(shipped.indexOf(rel) !== -1, "shipped link scan includes " + rel);
+});
+assert(
+  !shipped.some((rel) => rel.startsWith("docs/private/") || /^scripts\/test-.*\.js$/.test(rel)),
+  "shipped link scan skips tests and private docs"
+);
+
+shipped.forEach((rel) => {
+  const hits = privateRepoLinks(read(rel));
+  assert(
+    hits.length === 0,
+    rel + " has a user-facing link to X-Follow-Overlay: " + hits[0]
+  );
+});
+
+assert(Sync.KEYS_HINT_README_URL === PUBLIC_KEYS_URL, "optional keys help link points at the public repo");
+assert(readme.includes(PUBLIC_RELEASE_URL), "README download link points at the public repo");
+assert(read("popup/popup.js").includes("KEYS_HINT_README_URL"), "popup readme link uses the shared public URL");
+assert(content.includes("KEYS_HINT_README_URL"), "rail readme link uses the shared public URL");
+assert(
+  read("scripts/release-macos.sh").includes("KevinLogan84/XFollowOverlay"),
+  "release publish default stays the public repo"
+);
+
 console.log("All public-release tests passed.");
