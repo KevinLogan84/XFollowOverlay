@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>X Follow Overlay</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <h1>X Follow Overlay</h1>
+    <p class="lead">Dots on x.com profile pictures. Free with the account you’re already signed into.</p>
+
+    <ol class="steps">
+      <li id="step-sign-in">
+        <div class="step-head"><span class="num">1</span> Sign in on x.com</div>
+        <p>Open x.com in this browser and sign in. Sync uses only that tab.</p>
+        <button type="button" id="open-x">Open x.com</button>
+      </li>
+      <li id="step-sync">
+        <div class="step-head"><span class="num">2</span> Run the first Sync</div>
+        <p>Leave the x.com tab open. Large accounts take longer because x.com limits how fast a tab can read follows.</p>
+        <button type="button" id="run-sync">Sync now</button>
+        <p class="status" id="sync-status"></p>
+      </li>
+      <li id="step-keys">
+        <div class="step-head"><span class="num">3</span> Add API keys <span class="optional">(optional)</span></div>
+        <p>Keys from <a href="https://developer.x.com" target="_blank" rel="noopener">developer.x.com</a> sync large accounts faster. They stay in this browser. The download does not include any keys.</p>
+        <form id="keys-form">
+          <label>API key <input name="apiKey" type="password" autocomplete="off" spellcheck="false"></label>
+          <label>API key secret <input name="apiSecret" type="password" autocomplete="off" spellcheck="false"></label>
+          <label>Access token <input name="accessToken" type="password" autocomplete="off" spellcheck="false"></label>
+          <label>Access token secret <input name="accessSecret" type="password" autocomplete="off" spellcheck="false"></label>
+          <label>Bearer token <span class="optional">if you don’t have the four keys above</span>
+            <input name="bearer" type="password" autocomplete="off" spellcheck="false">
+          </label>
+          <div class="row">
+            <button type="submit">Save keys on this device</button>
+            <button type="button" id="clear-keys" class="quiet">Clear keys</button>
+          </div>
+        </form>
+        <p class="status" id="keys-status"></p>
+      </li>
+    </ol>
+
+    <p class="feedback">
+      <a href="mailto:kevinlogan@mail.grokbot.com">Feedback &amp; support</a>
+    </p>
+  </main>
+  <script src="../shared/x-api.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

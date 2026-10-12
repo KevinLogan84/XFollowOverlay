@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+  <rect width="960" height="540" fill="#15202b"/>
+  <text x="48" y="72" fill="#e7e9ea" font-family="-apple-system, Segoe UI, sans-serif" font-size="28">X Follow Overlay</text>
+  <text x="48" y="112" fill="#8b98a5" font-family="-apple-system, Segoe UI, sans-serif" font-size="16">Screenshot placeholder</text>
+  <circle cx="120" cy="240" r="36" fill="#38444d"/>
+  <circle cx="148" cy="268" r="8" fill="#68e050"/>
+  <circle cx="280" cy="240" r="36" fill="#38444d"/>
+  <circle cx="308" cy="268" r="8" fill="#1d9bf0"/>
+  <circle cx="440" cy="240" r="36" fill="#38444d"/>
+  <circle cx="468" cy="268" r="8" fill="#ffe600"/>
+  <circle cx="600" cy="240" r="36" fill="#38444d"/>
+  <circle cx="628" cy="268" r="8" fill="#ff3b30"/>
+  <text x="90" y="320" fill="#8b98a5" font-family="-apple-system, Segoe UI, sans-serif" font-size="14">Mutual</text>
+  <text x="246" y="320" fill="#8b98a5" font-family="-apple-system, Segoe UI, sans-serif" font-size="14">You follow</text>
+  <text x="404" y="320" fill="#8b98a5" font-family="-apple-system, Segoe UI, sans-serif" font-size="14">Follows you</text>
+  <text x="566" y="320" fill="#8b98a5" font-family="-apple-system, Segoe UI, sans-serif" font-size="14">Was mutual</text>
+</svg>

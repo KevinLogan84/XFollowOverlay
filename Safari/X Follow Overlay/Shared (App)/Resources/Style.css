@@ -1,0 +1,262 @@
+* {
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+    cursor: default;
+    box-sizing: border-box;
+}
+
+:root {
+    color-scheme: light dark;
+    --text: rgba(0, 0, 0, 0.88);
+    --muted: rgba(0, 0, 0, 0.52);
+    --line: rgba(255, 255, 255, 0.35);
+    --glass: rgba(255, 255, 255, 0.42);
+    --glass-border: rgba(255, 255, 255, 0.55);
+    --btn: #1d9bf0;
+    --btn-text: #fff;
+    --dot-mutual: #68e050;
+    --dot-following: #1d9bf0;
+    --dot-follower: #ffe600;
+    --dot-ex-mutual: #ff3b30;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.58);
+        --line: rgba(255, 255, 255, 0.14);
+        --glass: rgba(28, 28, 30, 0.45);
+        --glass-border: rgba(255, 255, 255, 0.18);
+        --dot-ex-mutual: #ff453a;
+    }
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    background: transparent;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow: auto;
+    font: 400 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+    width: min(360px, 100%);
+    padding: 56px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+}
+
+.hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-wrap {
+    width: 96px;
+    height: 96px;
+    border-radius: 24px;
+    display: grid;
+    place-items: center;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+        0 10px 40px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    margin-bottom: 6px;
+}
+
+.icon-wrap img {
+    border-radius: 20px;
+}
+
+h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+}
+
+.tagline {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.glass-card {
+    width: 100%;
+    padding: 16px 16px 14px;
+    border-radius: 18px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+}
+
+.glass-card p {
+    margin: 0 0 14px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 560;
+}
+
+.legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    min-height: 12px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    box-sizing: border-box;
+    display: block;
+    flex: 0 0 12px;
+    overflow: hidden;
+    background-clip: padding-box;
+    transform: none;
+}
+
+.dot.mutual { background: var(--dot-mutual); }
+.dot.following { background: var(--dot-following); }
+.dot.follower { background: var(--dot-follower); }
+.dot.ex-mutual { background: var(--dot-ex-mutual); }
+
+button.primary {
+    appearance: none;
+    border: none;
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 980px;
+    background: var(--btn);
+    color: var(--btn-text);
+    font: inherit;
+    font-weight: 620;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(29, 155, 240, 0.35);
+}
+
+button.primary:hover {
+    filter: brightness(1.05);
+}
+
+button.primary:active {
+    transform: scale(0.985);
+}
+
+.hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.4;
+    max-width: 32em;
+}
+
+.steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+
+.steps li {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+}
+
+.steps strong {
+    display: block;
+    font-size: 13px;
+}
+
+.steps p {
+    margin: 4px 0 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.optional {
+    font-weight: 450;
+    color: var(--muted);
+}
+
+button.open-x {
+    appearance: none;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 980px;
+    background: var(--btn);
+    color: var(--btn-text);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 620;
+    cursor: pointer;
+}
+
+a.feedback {
+    color: var(--btn);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+body:not(.platform-mac, .platform-ios) :is(.platform-mac, .platform-ios) {
+    display: none;
+}
+
+body.platform-ios .platform-mac,
+body.platform-mac .platform-ios {
+    display: none;
+}
+
+body:not(.state-on, .state-off) :is(.state-on, .state-off) {
+    display: none;
+}
+
+body.state-on :is(.state-off, .state-unknown) {
+    display: none;
+}
+
+body.state-off :is(.state-on, .state-unknown) {
+    display: none;
+}

@@ -1,0 +1,10 @@
+.DS_Store
+*.crx
+*.pem
+node_modules/
+.chrome-profile/
+.safari-stage/
+xcuserdata/
+*.xcuserstate
+DerivedData/
+dist/

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <link rel="stylesheet" href="../Style.css">
+    <script src="../Script.js" defer></script>
+</head>
+<body>
+    <div class="shell">
+        <div class="hero">
+            <div class="icon-wrap">
+                <img src="../Icon.png" width="88" height="88" alt="X Follow Overlay">
+            </div>
+            <h1>X Follow Overlay</h1>
+            <p class="tagline">Follow status dots while you scroll x.com</p>
+        </div>
+
+        <ol class="steps">
+            <li>
+                <strong>1. Sign in on x.com</strong>
+                <p>Use the account you want dots for. Sync reads only that signed-in tab.</p>
+                <button type="button" class="open-x">Open x.com</button>
+            </li>
+            <li>
+                <strong>2. Run the first Sync</strong>
+                <p>Enable the extension, allow x.com, then on x.com click the people icon under Post and choose Sync now.</p>
+            </li>
+            <li>
+                <strong>3. Add API keys <span class="optional">(optional)</span></strong>
+                <p>Keys from developer.x.com sync large accounts faster. Paste them in the extension popup. They stay on this Mac and are not in the download.</p>
+            </li>
+        </ol>
+
+        <div class="glass-card">
+            <p class="platform-ios">Turn on the Safari extension in Settings.</p>
+            <p class="platform-mac state-unknown">Enable the extension in Safari Settings → Extensions, then open x.com and sync.</p>
+            <p class="platform-mac state-on">Extension is on. Open x.com, sign in, and tap the people icon under Post to sync.</p>
+            <p class="platform-mac state-off">Extension is off. Enable it in Safari Settings → Extensions to continue.</p>
+
+            <div class="legend">
+                <span><i class="dot mutual"></i> Mutual</span>
+                <span><i class="dot following"></i> You follow</span>
+                <span><i class="dot follower"></i> Follows you</span>
+                <span><i class="dot ex-mutual"></i> Was mutual</span>
+            </div>
+        </div>
+
+        <button type="button" class="platform-mac open-preferences primary">
+            Open Safari Settings…
+        </button>
+
+        <p class="hint platform-mac">Big accounts sync slower because x.com limits how fast a signed-in tab can read follows. Leave the tab open.</p>
+        <p class="hint"><a class="feedback" href="mailto:kevinlogan@mail.grokbot.com">Feedback &amp; support</a></p>
+    </div>
+</body>
+</html>

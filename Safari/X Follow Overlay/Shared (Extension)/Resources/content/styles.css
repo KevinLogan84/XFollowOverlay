@@ -1,0 +1,422 @@
+.xfo-badge {
+  display: none !important;
+}
+
+/* Keep avatar cell (and overflowing badge/metrics) above the thread rail. */
+[data-testid="Tweet-User-Avatar"] {
+  position: relative !important;
+  z-index: 5 !important;
+  overflow: visible !important;
+}
+
+.xfo-dot {
+  position: absolute !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: -19px !important;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  max-width: 12px !important;
+  max-height: 12px !important;
+  margin: 0 0 0 -6px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+  pointer-events: none !important;
+  z-index: 50 !important;
+  display: block !important;
+  transform: none !important;
+  background-color: transparent !important;
+  background-clip: padding-box !important;
+  outline: none !important;
+  overflow: hidden !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+  aspect-ratio: 1 / 1 !important;
+}
+
+.xfo-dot[data-rel="mutual"] {
+  background-color: #68e050 !important;
+}
+.xfo-dot[data-rel="following"] {
+  background-color: #1d9bf0 !important;
+}
+.xfo-dot[data-rel="follower"] {
+  background-color: #ffe600 !important;
+}
+.xfo-dot[data-rel="ex_mutual"] {
+  background-color: #ff3b30 !important;
+}
+
+.xfo-dot svg {
+  display: none !important;
+}
+
+.xfo-dot.xfo-hidden {
+  display: none !important;
+}
+
+/* Compact layouts (opened post / notifications): right-side overlay. */
+.xfo-dot.xfo-focal {
+  left: var(--xfo-focal-x, 100%) !important;
+  right: auto !important;
+  bottom: auto !important;
+  top: 50% !important;
+  margin: 1px 0 0 -17px !important;
+  transform: none !important;
+}
+
+/* Days / pace badges are retired. Hide any leftover node from an older build. */
+.xfo-metrics {
+  display: none !important;
+}
+
+/* Left-rail control — sits under X’s Post button, matches nav icon chrome. */
+.xfo-rail {
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin-top: 4px !important;
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+.xfo-rail-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 50px !important;
+  height: 50px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  background: transparent !important;
+  color: inherit !important;
+  cursor: pointer !important;
+  line-height: 0 !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.xfo-rail-btn:hover,
+.xfo-rail-btn:focus-visible {
+  background-color: color-mix(in srgb, currentColor 10%, transparent) !important;
+  outline: none !important;
+}
+
+.xfo-rail-btn[aria-expanded="true"] {
+  background-color: color-mix(in srgb, currentColor 10%, transparent) !important;
+}
+
+.xfo-rail-btn svg {
+  width: 26.25px !important;
+  height: 26.25px !important;
+  display: block !important;
+}
+
+/* Rail panel tokens — Sync now is X blue (--primary). */
+.xfo-rail-panel,
+.xfo-rail-panel[data-theme="light"] {
+  --bg: #f2f2f7;
+  --card: rgba(255, 255, 255, 0.92);
+  --text: #1c1c1e;
+  --muted: #636366;
+  --line: rgba(60, 60, 67, 0.18);
+  --primary: #1d9bf0;
+  --danger: #ff3b30;
+  --info: #636366;
+  --dot-mutual: #68e050;
+  --dot-following: #1d9bf0;
+  --dot-follower: #ffe600;
+  --dot-ex-mutual: #ff3b30;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  color-scheme: light;
+}
+
+.xfo-rail-panel:not([data-theme]),
+.xfo-rail-panel[data-theme="system"] {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .xfo-rail-panel:not([data-theme="light"]) {
+    --bg: #1c1c1e;
+    --card: rgba(44, 44, 46, 0.96);
+    --text: #f5f5f7;
+    --muted: #98989d;
+    --line: rgba(255, 255, 255, 0.12);
+    --danger: #ff453a;
+    --dot-ex-mutual: #ff453a;
+    --info: #8b98a5;
+    --shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+    color-scheme: dark;
+  }
+}
+
+.xfo-rail-panel[data-theme="dark"] {
+  --bg: #1c1c1e;
+  --card: rgba(44, 44, 46, 0.96);
+  --text: #f5f5f7;
+  --muted: #98989d;
+  --line: rgba(255, 255, 255, 0.12);
+  --danger: #ff453a;
+  --dot-ex-mutual: #ff453a;
+  --info: #8b98a5;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+
+.xfo-rail-panel {
+  position: fixed !important;
+  width: 292px !important;
+  max-width: calc(100vw - 16px) !important;
+  padding: 12px !important;
+  border-radius: 16px !important;
+  border: 1px solid var(--line) !important;
+  background: var(--bg) !important;
+  box-shadow: var(--shadow) !important;
+  color: var(--text) !important;
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+    sans-serif !important;
+  -webkit-font-smoothing: antialiased !important;
+  z-index: 2147483000 !important;
+  box-sizing: border-box !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  transform: scale(0.84) !important;
+  transform-origin: left center !important;
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s !important;
+}
+
+.xfo-rail-panel.xfo-open {
+  visibility: visible !important;
+  opacity: 1 !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+
+.xfo-rail-head {
+  text-align: center !important;
+  margin: 0 0 12px !important;
+}
+
+.xfo-rail-panel h2 {
+  margin: 0 !important;
+  font-size: 16px !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--text) !important;
+  text-align: center !important;
+}
+
+.xfo-rail-panel .xfo-rail-sub {
+  margin: 2px 0 0 !important;
+  font-size: 12px !important;
+  color: var(--muted) !important;
+  text-align: center !important;
+}
+
+.xfo-rail-card {
+  background: var(--card) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 14px !important;
+  padding: 12px !important;
+  margin: 0 0 10px !important;
+  overflow: hidden !important;
+}
+
+.xfo-rail-row {
+  display: grid !important;
+  grid-template-columns: 78px minmax(0, 1fr) !important;
+  column-gap: 8px !important;
+  align-items: start !important;
+  margin: 0 0 7px !important;
+  font-size: 13px !important;
+}
+
+.xfo-rail-label {
+  color: var(--muted) !important;
+  padding-top: 1px !important;
+}
+
+.xfo-rail-value {
+  font-weight: 600 !important;
+  color: var(--text) !important;
+  text-align: right !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  font-variant-numeric: tabular-nums !important;
+  min-width: 0 !important;
+}
+
+.xfo-rail-err {
+  margin: 8px 0 0 !important;
+  font-size: 12px !important;
+  color: var(--danger) !important;
+}
+
+.xfo-rail-err.xfo-info {
+  color: var(--info) !important;
+}
+
+.xfo-rail-err[hidden] {
+  display: none !important;
+}
+
+.xfo-rail-sync {
+  display: block !important;
+  width: 100% !important;
+  margin: 10px 0 0 !important;
+  padding: 9px 12px !important;
+  border: 1px solid var(--primary) !important;
+  border-radius: 980px !important;
+  background: var(--primary) !important;
+  color: #fff !important;
+  font: inherit !important;
+  font-weight: 650 !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  text-align: center !important;
+  cursor: pointer !important;
+}
+
+.xfo-rail-sync:disabled {
+  opacity: 0.55 !important;
+  cursor: default !important;
+}
+
+.xfo-rail-legend {
+  display: grid !important;
+  grid-template-columns: auto auto !important;
+  justify-content: center !important;
+  justify-items: start !important;
+  column-gap: 14px !important;
+  row-gap: 6px !important;
+  margin: 4px 0 0 !important;
+  padding: 0 !important;
+}
+
+.xfo-rail-leg {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--muted) !important;
+}
+
+.xfo-rail-leg i,
+.xfo-rail-leg i.m,
+.xfo-rail-leg i.f,
+.xfo-rail-leg i.r,
+.xfo-rail-leg i.x {
+  display: block !important;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  max-width: 12px !important;
+  max-height: 12px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  box-sizing: border-box !important;
+  flex: 0 0 12px !important;
+  aspect-ratio: 1 / 1 !important;
+  overflow: hidden !important;
+  background-clip: padding-box !important;
+  font: 0 / 0 sans-serif !important;
+  font-style: normal !important;
+  line-height: 0 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+  -webkit-mask: none !important;
+  mask: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+
+.xfo-rail-leg i::before,
+.xfo-rail-leg i::after {
+  content: none !important;
+  display: none !important;
+}
+
+.xfo-rail-leg .m {
+  background: var(--dot-mutual) !important;
+}
+.xfo-rail-leg .f {
+  background: var(--dot-following) !important;
+}
+.xfo-rail-leg .r {
+  background: var(--dot-follower) !important;
+}
+.xfo-rail-leg .x {
+  background: var(--dot-ex-mutual) !important;
+}
+
+.xfo-theme {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: stretch !important;
+  gap: 3px !important;
+  margin: 0 0 10px !important;
+  padding: 3px !important;
+  background: var(--card) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  box-sizing: border-box !important;
+}
+
+.xfo-theme button {
+  flex: 1 1 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  margin: 0 !important;
+  padding: 0 4px !important;
+  border: none !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  font: inherit !important;
+  font-size: 10px !important;
+  font-weight: 650 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-sizing: border-box !important;
+}
+
+.xfo-theme button[aria-checked="true"] {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+.xfo-rail-feedback {
+  margin: 8px 0 0 !important;
+  text-align: center !important;
+}
+
+.xfo-rail-feedback a {
+  color: var(--primary, #1d9bf0) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+}

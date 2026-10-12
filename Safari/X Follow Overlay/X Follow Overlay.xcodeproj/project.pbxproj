@@ -1,0 +1,949 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 110;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0E369B6430090BDC002D1F98 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E369B6330090BDC002D1F98 /* AppDelegate.swift */; };
+		0E369B6630090BDC002D1F98 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E369B6530090BDC002D1F98 /* SceneDelegate.swift */; };
+		0E369B6930090BDC002D1F98 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B6730090BDC002D1F98 /* LaunchScreen.storyboard */; };
+		0E369B6C30090BDC002D1F98 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B6A30090BDC002D1F98 /* Main.storyboard */; };
+		0E369B7530090BDC002D1F98 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E369B7430090BDC002D1F98 /* AppDelegate.swift */; };
+		0E369B7830090BDC002D1F98 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B7630090BDC002D1F98 /* Main.storyboard */; };
+		0E369B7F30090BDC002D1F98 /* X Follow Overlay Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0E369B7E30090BDC002D1F98 /* X Follow Overlay Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0E369B8930090BDC002D1F98 /* X Follow Overlay Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0E369B8830090BDC002D1F98 /* X Follow Overlay Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0E369B8E30090BDC002D1F98 /* Main.html in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5330090BDB002D1F98 /* Main.html */; };
+		0E369B8F30090BDC002D1F98 /* Main.html in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5330090BDB002D1F98 /* Main.html */; };
+		0E369B9030090BDC002D1F98 /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5530090BDB002D1F98 /* Icon.png */; };
+		0E369B9130090BDC002D1F98 /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5530090BDB002D1F98 /* Icon.png */; };
+		0E369B9230090BDC002D1F98 /* Style.css in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5630090BDB002D1F98 /* Style.css */; };
+		0E369B9330090BDC002D1F98 /* Style.css in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5630090BDB002D1F98 /* Style.css */; };
+		0E369B9430090BDC002D1F98 /* Script.js in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5730090BDB002D1F98 /* Script.js */; };
+		0E369B9530090BDC002D1F98 /* Script.js in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5730090BDB002D1F98 /* Script.js */; };
+		0E369B9630090BDC002D1F98 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E369B5830090BDB002D1F98 /* ViewController.swift */; };
+		0E369B9730090BDC002D1F98 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E369B5830090BDB002D1F98 /* ViewController.swift */; };
+		0E369B9830090BDC002D1F98 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5930090BDC002D1F98 /* Assets.xcassets */; };
+		0E369B9930090BDC002D1F98 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0E369B5930090BDC002D1F98 /* Assets.xcassets */; };
+		0E369B9A30090BDC002D1F98 /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E369B5B30090BDC002D1F98 /* SafariWebExtensionHandler.swift */; };
+		0E369B9B30090BDC002D1F98 /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E369B5B30090BDC002D1F98 /* SafariWebExtensionHandler.swift */; };
+		0E369BB330090BDC002D1F98 /* background in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BAD30090BDC002D1F98 /* background */; };
+		0E369BB530090BDC002D1F98 /* content in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BAF30090BDC002D1F98 /* content */; };
+		0E369BB630090BDC002D1F98 /* shared in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BB030090BDC002D1F98 /* shared */; };
+		0E369BB730090BDC002D1F98 /* icons in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BB130090BDC002D1F98 /* icons */; };
+		0E369BB830090BDC002D1F98 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BB230090BDC002D1F98 /* manifest.json */; };
+		0E369BC130090BDC002D1F98 /* popup in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BC030090BDC002D1F98 /* popup */; };
+		0E369BB930090BDC002D1F98 /* background in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BAD30090BDC002D1F98 /* background */; };
+		0E369BBB30090BDC002D1F98 /* content in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BAF30090BDC002D1F98 /* content */; };
+		0E369BBC30090BDC002D1F98 /* shared in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BB030090BDC002D1F98 /* shared */; };
+		0E369BBD30090BDC002D1F98 /* icons in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BB130090BDC002D1F98 /* icons */; };
+		0E369BBE30090BDC002D1F98 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BB230090BDC002D1F98 /* manifest.json */; };
+		0E369BC230090BDC002D1F98 /* popup in Resources */ = {isa = PBXBuildFile; fileRef = 0E369BC030090BDC002D1F98 /* popup */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0E369B8030090BDC002D1F98 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0E369B4D30090BDB002D1F98 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0E369B7D30090BDC002D1F98;
+			remoteInfo = "X Follow Overlay Extension (iOS)";
+		};
+		0E369B8A30090BDC002D1F98 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0E369B4D30090BDB002D1F98 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0E369B8730090BDC002D1F98;
+			remoteInfo = "X Follow Overlay Extension (macOS)";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0E369BA130090BDC002D1F98 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = PlugIns;
+			files = (
+				0E369B7F30090BDC002D1F98 /* X Follow Overlay Extension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+		};
+		0E369BA830090BDC002D1F98 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = PlugIns;
+			files = (
+				0E369B8930090BDC002D1F98 /* X Follow Overlay Extension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0E369B5430090BDB002D1F98 /* Base */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = Base; path = Base.lproj/Main.html; sourceTree = "<group>"; };
+		0E369B5530090BDB002D1F98 /* Icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Icon.png; sourceTree = "<group>"; };
+		0E369B5630090BDB002D1F98 /* Style.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = Style.css; sourceTree = "<group>"; };
+		0E369B5730090BDB002D1F98 /* Script.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Script.js; sourceTree = "<group>"; };
+		0E369B5830090BDB002D1F98 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		0E369B5930090BDC002D1F98 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0E369B5B30090BDC002D1F98 /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
+		0E369B6030090BDC002D1F98 /* X Follow Overlay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "X Follow Overlay.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0E369B6330090BDC002D1F98 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		0E369B6530090BDC002D1F98 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		0E369B6830090BDC002D1F98 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		0E369B6B30090BDC002D1F98 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		0E369B6D30090BDC002D1F98 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0E369B7230090BDC002D1F98 /* X Follow Overlay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "X Follow Overlay.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0E369B7430090BDC002D1F98 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		0E369B7730090BDC002D1F98 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		0E369B7930090BDC002D1F98 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0E369B7E30090BDC002D1F98 /* X Follow Overlay Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "X Follow Overlay Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0E369B8330090BDC002D1F98 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0E369B8830090BDC002D1F98 /* X Follow Overlay Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "X Follow Overlay Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0E369B8D30090BDC002D1F98 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0E369BAD30090BDC002D1F98 /* background */ = {isa = PBXFileReference; lastKnownFileType = folder; name = background; path = Resources/background; sourceTree = "<group>"; };
+		0E369BAF30090BDC002D1F98 /* content */ = {isa = PBXFileReference; lastKnownFileType = folder; name = content; path = Resources/content; sourceTree = "<group>"; };
+		0E369BB030090BDC002D1F98 /* shared */ = {isa = PBXFileReference; lastKnownFileType = folder; name = shared; path = Resources/shared; sourceTree = "<group>"; };
+		0E369BB130090BDC002D1F98 /* icons */ = {isa = PBXFileReference; lastKnownFileType = folder; name = icons; path = Resources/icons; sourceTree = "<group>"; };
+		0E369BB230090BDC002D1F98 /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = Resources/manifest.json; sourceTree = "<group>"; };
+		0E369BC030090BDC002D1F98 /* popup */ = {isa = PBXFileReference; lastKnownFileType = folder; name = popup; path = Resources/popup; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0E369B5D30090BDC002D1F98 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		0E369B6F30090BDC002D1F98 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		0E369B7B30090BDC002D1F98 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		0E369B8530090BDC002D1F98 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0E369B4C30090BDB002D1F98 = {
+			isa = PBXGroup;
+			children = (
+				0E369B5130090BDB002D1F98 /* Shared (App) */,
+				0E369B5A30090BDC002D1F98 /* Shared (Extension) */,
+				0E369B6230090BDC002D1F98 /* iOS (App) */,
+				0E369B7330090BDC002D1F98 /* macOS (App) */,
+				0E369B8230090BDC002D1F98 /* iOS (Extension) */,
+				0E369B8C30090BDC002D1F98 /* macOS (Extension) */,
+				0E369B6130090BDC002D1F98 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		0E369B5130090BDB002D1F98 /* Shared (App) */ = {
+			isa = PBXGroup;
+			children = (
+				0E369B5830090BDB002D1F98 /* ViewController.swift */,
+				0E369B5930090BDC002D1F98 /* Assets.xcassets */,
+				0E369B5230090BDB002D1F98 /* Resources */,
+			);
+			path = "Shared (App)";
+			sourceTree = "<group>";
+		};
+		0E369B5230090BDB002D1F98 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0E369B5330090BDB002D1F98 /* Main.html */,
+				0E369B5530090BDB002D1F98 /* Icon.png */,
+				0E369B5630090BDB002D1F98 /* Style.css */,
+				0E369B5730090BDB002D1F98 /* Script.js */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		0E369B5A30090BDC002D1F98 /* Shared (Extension) */ = {
+			isa = PBXGroup;
+			children = (
+				0E369BAC30090BDC002D1F98 /* Resources */,
+				0E369B5B30090BDC002D1F98 /* SafariWebExtensionHandler.swift */,
+			);
+			path = "Shared (Extension)";
+			sourceTree = "<group>";
+		};
+		0E369B6130090BDC002D1F98 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0E369B6030090BDC002D1F98 /* X Follow Overlay.app */,
+				0E369B7230090BDC002D1F98 /* X Follow Overlay.app */,
+				0E369B7E30090BDC002D1F98 /* X Follow Overlay Extension.appex */,
+				0E369B8830090BDC002D1F98 /* X Follow Overlay Extension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0E369B6230090BDC002D1F98 /* iOS (App) */ = {
+			isa = PBXGroup;
+			children = (
+				0E369B6330090BDC002D1F98 /* AppDelegate.swift */,
+				0E369B6530090BDC002D1F98 /* SceneDelegate.swift */,
+				0E369B6730090BDC002D1F98 /* LaunchScreen.storyboard */,
+				0E369B6A30090BDC002D1F98 /* Main.storyboard */,
+				0E369B6D30090BDC002D1F98 /* Info.plist */,
+			);
+			path = "iOS (App)";
+			sourceTree = "<group>";
+		};
+		0E369B7330090BDC002D1F98 /* macOS (App) */ = {
+			isa = PBXGroup;
+			children = (
+				0E369B7430090BDC002D1F98 /* AppDelegate.swift */,
+				0E369B7630090BDC002D1F98 /* Main.storyboard */,
+				0E369B7930090BDC002D1F98 /* Info.plist */,
+			);
+			path = "macOS (App)";
+			sourceTree = "<group>";
+		};
+		0E369B8230090BDC002D1F98 /* iOS (Extension) */ = {
+			isa = PBXGroup;
+			children = (
+				0E369B8330090BDC002D1F98 /* Info.plist */,
+			);
+			path = "iOS (Extension)";
+			sourceTree = "<group>";
+		};
+		0E369B8C30090BDC002D1F98 /* macOS (Extension) */ = {
+			isa = PBXGroup;
+			children = (
+				0E369B8D30090BDC002D1F98 /* Info.plist */,
+			);
+			path = "macOS (Extension)";
+			sourceTree = "<group>";
+		};
+		0E369BAC30090BDC002D1F98 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0E369BAD30090BDC002D1F98 /* background */,
+				0E369BAF30090BDC002D1F98 /* content */,
+				0E369BB030090BDC002D1F98 /* shared */,
+				0E369BB130090BDC002D1F98 /* icons */,
+				0E369BC030090BDC002D1F98 /* popup */,
+				0E369BB230090BDC002D1F98 /* manifest.json */,
+			);
+			name = Resources;
+			path = "Shared (Extension)";
+			sourceTree = SOURCE_ROOT;
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0E369B5F30090BDC002D1F98 /* X Follow Overlay (iOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0E369BA230090BDC002D1F98 /* Build configuration list for PBXNativeTarget "X Follow Overlay (iOS)" */;
+			buildPhases = (
+				0E369B5C30090BDC002D1F98 /* Sources */,
+				0E369B5D30090BDC002D1F98 /* Frameworks */,
+				0E369B5E30090BDC002D1F98 /* Resources */,
+				0E369BA130090BDC002D1F98 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0E369B8130090BDC002D1F98 /* PBXTargetDependency */,
+			);
+			name = "X Follow Overlay (iOS)";
+			productName = "X Follow Overlay (iOS)";
+			productReference = 0E369B6030090BDC002D1F98 /* X Follow Overlay.app */;
+			productType = "com.apple.product-type.application";
+		};
+		0E369B7130090BDC002D1F98 /* X Follow Overlay (macOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0E369BA930090BDC002D1F98 /* Build configuration list for PBXNativeTarget "X Follow Overlay (macOS)" */;
+			buildPhases = (
+				0E369B6E30090BDC002D1F98 /* Sources */,
+				0E369B6F30090BDC002D1F98 /* Frameworks */,
+				0E369B7030090BDC002D1F98 /* Resources */,
+				0E369BA830090BDC002D1F98 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0E369B8B30090BDC002D1F98 /* PBXTargetDependency */,
+			);
+			name = "X Follow Overlay (macOS)";
+			productName = "X Follow Overlay (macOS)";
+			productReference = 0E369B7230090BDC002D1F98 /* X Follow Overlay.app */;
+			productType = "com.apple.product-type.application";
+		};
+		0E369B7D30090BDC002D1F98 /* X Follow Overlay Extension (iOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0E369B9E30090BDC002D1F98 /* Build configuration list for PBXNativeTarget "X Follow Overlay Extension (iOS)" */;
+			buildPhases = (
+				0E369B7A30090BDC002D1F98 /* Sources */,
+				0E369B7B30090BDC002D1F98 /* Frameworks */,
+				0E369B7C30090BDC002D1F98 /* Resources */,
+			);
+			buildRules = (
+			);
+			name = "X Follow Overlay Extension (iOS)";
+			productName = "X Follow Overlay Extension (iOS)";
+			productReference = 0E369B7E30090BDC002D1F98 /* X Follow Overlay Extension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		0E369B8730090BDC002D1F98 /* X Follow Overlay Extension (macOS) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0E369BA530090BDC002D1F98 /* Build configuration list for PBXNativeTarget "X Follow Overlay Extension (macOS)" */;
+			buildPhases = (
+				0E369B8430090BDC002D1F98 /* Sources */,
+				0E369B8530090BDC002D1F98 /* Frameworks */,
+				0E369B8630090BDC002D1F98 /* Resources */,
+			);
+			buildRules = (
+			);
+			name = "X Follow Overlay Extension (macOS)";
+			productName = "X Follow Overlay Extension (macOS)";
+			productReference = 0E369B8830090BDC002D1F98 /* X Follow Overlay Extension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0E369B4D30090BDB002D1F98 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					0E369B5F30090BDC002D1F98 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					0E369B7130090BDC002D1F98 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					0E369B7D30090BDC002D1F98 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					0E369B8730090BDC002D1F98 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+				};
+			};
+			buildConfigurationList = 0E369B5030090BDB002D1F98 /* Build configuration list for PBXProject "X Follow Overlay" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 0E369B4C30090BDB002D1F98;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 0E369B6130090BDC002D1F98 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0E369B5F30090BDC002D1F98 /* X Follow Overlay (iOS) */,
+				0E369B7130090BDC002D1F98 /* X Follow Overlay (macOS) */,
+				0E369B7D30090BDC002D1F98 /* X Follow Overlay Extension (iOS) */,
+				0E369B8730090BDC002D1F98 /* X Follow Overlay Extension (macOS) */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0E369B5E30090BDC002D1F98 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				0E369B9030090BDC002D1F98 /* Icon.png in Resources */,
+				0E369B6930090BDC002D1F98 /* LaunchScreen.storyboard in Resources */,
+				0E369B8E30090BDC002D1F98 /* Main.html in Resources */,
+				0E369B9430090BDC002D1F98 /* Script.js in Resources */,
+				0E369B9830090BDC002D1F98 /* Assets.xcassets in Resources */,
+				0E369B6C30090BDC002D1F98 /* Main.storyboard in Resources */,
+				0E369B9230090BDC002D1F98 /* Style.css in Resources */,
+			);
+		};
+		0E369B7030090BDC002D1F98 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				0E369B9130090BDC002D1F98 /* Icon.png in Resources */,
+				0E369B9330090BDC002D1F98 /* Style.css in Resources */,
+				0E369B7830090BDC002D1F98 /* Main.storyboard in Resources */,
+				0E369B9530090BDC002D1F98 /* Script.js in Resources */,
+				0E369B9930090BDC002D1F98 /* Assets.xcassets in Resources */,
+				0E369B8F30090BDC002D1F98 /* Main.html in Resources */,
+			);
+		};
+		0E369B7C30090BDC002D1F98 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				0E369BBB30090BDC002D1F98 /* content in Resources */,
+				0E369BBC30090BDC002D1F98 /* shared in Resources */,
+				0E369BB930090BDC002D1F98 /* background in Resources */,
+				0E369BBD30090BDC002D1F98 /* icons in Resources */,
+				0E369BC230090BDC002D1F98 /* popup in Resources */,
+				0E369BBE30090BDC002D1F98 /* manifest.json in Resources */,
+			);
+		};
+		0E369B8630090BDC002D1F98 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				0E369BB530090BDC002D1F98 /* content in Resources */,
+				0E369BB630090BDC002D1F98 /* shared in Resources */,
+				0E369BB330090BDC002D1F98 /* background in Resources */,
+				0E369BB730090BDC002D1F98 /* icons in Resources */,
+				0E369BC130090BDC002D1F98 /* popup in Resources */,
+				0E369BB830090BDC002D1F98 /* manifest.json in Resources */,
+			);
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0E369B5C30090BDC002D1F98 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				0E369B9630090BDC002D1F98 /* ViewController.swift in Sources */,
+				0E369B6430090BDC002D1F98 /* AppDelegate.swift in Sources */,
+				0E369B6630090BDC002D1F98 /* SceneDelegate.swift in Sources */,
+			);
+		};
+		0E369B6E30090BDC002D1F98 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				0E369B9730090BDC002D1F98 /* ViewController.swift in Sources */,
+				0E369B7530090BDC002D1F98 /* AppDelegate.swift in Sources */,
+			);
+		};
+		0E369B7A30090BDC002D1F98 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				0E369B9A30090BDC002D1F98 /* SafariWebExtensionHandler.swift in Sources */,
+			);
+		};
+		0E369B8430090BDC002D1F98 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				0E369B9B30090BDC002D1F98 /* SafariWebExtensionHandler.swift in Sources */,
+			);
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0E369B8130090BDC002D1F98 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0E369B7D30090BDC002D1F98 /* X Follow Overlay Extension (iOS) */;
+			targetProxy = 0E369B8030090BDC002D1F98 /* PBXContainerItemProxy */;
+		};
+		0E369B8B30090BDC002D1F98 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0E369B8730090BDC002D1F98 /* X Follow Overlay Extension (macOS) */;
+			targetProxy = 0E369B8A30090BDC002D1F98 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		0E369B5330090BDB002D1F98 /* Main.html */ = {
+			isa = PBXVariantGroup;
+			children = (
+				0E369B5430090BDB002D1F98 /* Base */,
+			);
+			name = Main.html;
+			sourceTree = "<group>";
+		};
+		0E369B6730090BDC002D1F98 /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				0E369B6830090BDC002D1F98 /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+		0E369B6A30090BDC002D1F98 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				0E369B6B30090BDC002D1F98 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		0E369B7630090BDC002D1F98 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				0E369B7730090BDC002D1F98 /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		0E369B9C30090BDC002D1F98 /* Debug configuration for PBXProject "X Follow Overlay" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		0E369B9D30090BDC002D1F98 /* Release configuration for PBXProject "X Follow Overlay" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		0E369B9F30090BDC002D1F98 /* Debug configuration for PBXNativeTarget "X Follow Overlay Extension (iOS)" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 143;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "X Follow Overlay Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.2.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kevinlogan.xfollowoverlay.Extension;
+				PRODUCT_NAME = "X Follow Overlay Extension";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0E369BA030090BDC002D1F98 /* Release configuration for PBXNativeTarget "X Follow Overlay Extension (iOS)" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 143;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "iOS (Extension)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "X Follow Overlay Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.2.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kevinlogan.xfollowoverlay.Extension;
+				PRODUCT_NAME = "X Follow Overlay Extension";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		0E369BA330090BDC002D1F98 /* Debug configuration for PBXNativeTarget "X Follow Overlay (iOS)" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 143;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "iOS (App)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "X Follow Overlay";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.2.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kevinlogan.xfollowoverlay;
+				PRODUCT_NAME = "X Follow Overlay";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0E369BA430090BDC002D1F98 /* Release configuration for PBXNativeTarget "X Follow Overlay (iOS)" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 143;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "iOS (App)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "X Follow Overlay";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.2.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kevinlogan.xfollowoverlay;
+				PRODUCT_NAME = "X Follow Overlay";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		0E369BA630090BDC002D1F98 /* Debug configuration for PBXNativeTarget "X Follow Overlay Extension (macOS)" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 143;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "macOS (Extension)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "X Follow Overlay Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.2.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kevinlogan.xfollowoverlay.Extension;
+				PRODUCT_NAME = "X Follow Overlay Extension";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		0E369BA730090BDC002D1F98 /* Release configuration for PBXNativeTarget "X Follow Overlay Extension (macOS)" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 143;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "macOS (Extension)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "X Follow Overlay Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.2.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kevinlogan.xfollowoverlay.Extension;
+				PRODUCT_NAME = "X Follow Overlay Extension";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		0E369BAA30090BDC002D1F98 /* Debug configuration for PBXNativeTarget "X Follow Overlay (macOS)" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 143;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "macOS (App)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "X Follow Overlay";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.2.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kevinlogan.xfollowoverlay;
+				PRODUCT_NAME = "X Follow Overlay";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		0E369BAB30090BDC002D1F98 /* Release configuration for PBXNativeTarget "X Follow Overlay (macOS)" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 143;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "macOS (App)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "X Follow Overlay";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.2.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.kevinlogan.xfollowoverlay;
+				PRODUCT_NAME = "X Follow Overlay";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0E369B5030090BDB002D1F98 /* Build configuration list for PBXProject "X Follow Overlay" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0E369B9C30090BDC002D1F98 /* Debug configuration for PBXProject "X Follow Overlay" */,
+				0E369B9D30090BDC002D1F98 /* Release configuration for PBXProject "X Follow Overlay" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		0E369B9E30090BDC002D1F98 /* Build configuration list for PBXNativeTarget "X Follow Overlay Extension (iOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0E369B9F30090BDC002D1F98 /* Debug configuration for PBXNativeTarget "X Follow Overlay Extension (iOS)" */,
+				0E369BA030090BDC002D1F98 /* Release configuration for PBXNativeTarget "X Follow Overlay Extension (iOS)" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		0E369BA230090BDC002D1F98 /* Build configuration list for PBXNativeTarget "X Follow Overlay (iOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0E369BA330090BDC002D1F98 /* Debug configuration for PBXNativeTarget "X Follow Overlay (iOS)" */,
+				0E369BA430090BDC002D1F98 /* Release configuration for PBXNativeTarget "X Follow Overlay (iOS)" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		0E369BA530090BDC002D1F98 /* Build configuration list for PBXNativeTarget "X Follow Overlay Extension (macOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0E369BA630090BDC002D1F98 /* Debug configuration for PBXNativeTarget "X Follow Overlay Extension (macOS)" */,
+				0E369BA730090BDC002D1F98 /* Release configuration for PBXNativeTarget "X Follow Overlay Extension (macOS)" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		0E369BA930090BDC002D1F98 /* Build configuration list for PBXNativeTarget "X Follow Overlay (macOS)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0E369BAA30090BDC002D1F98 /* Debug configuration for PBXNativeTarget "X Follow Overlay (macOS)" */,
+				0E369BAB30090BDC002D1F98 /* Release configuration for PBXNativeTarget "X Follow Overlay (macOS)" */,
+			);
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0E369B4D30090BDB002D1F98 /* Project object */;
+	validationLevel = 1;
+}

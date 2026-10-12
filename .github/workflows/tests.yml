@@ -1,0 +1,35 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Manifest is valid JSON
+        run: node -e "require('./manifest.json')"
+      - name: Syntax-check the bundle
+        run: |
+          set -e
+          for f in background/*.js content/*.js shared/*.js popup/*.js; do
+            node --check "$f"
+          done
+      - name: Unit tests
+        run: |
+          set -e
+          for t in scripts/test-*.js; do
+            echo "== $t"
+            node "$t"
+          done
+      - name: Safari Resources match the root bundle
+        run: |
+          set -e
+          bash scripts/sync-safari-resources.sh
+          git diff --exit-code -- "Safari/X Follow Overlay/Shared (Extension)/Resources"
