@@ -25,6 +25,9 @@ assert(/\.xfo-dot\s*\{[^}]*height:\s*12px/.test(css), "avatar dot is 12px tall")
 assert(/\.xfo-dot\s*\{[^}]*border-radius:\s*6px/.test(css), "avatar dot radius is exactly half");
 assert(/\.xfo-dot\s*\{[^}]*box-sizing:\s*border-box/.test(css), "avatar dot uses border-box");
 assert(/\.xfo-dot\s*\{[^}]*transform:\s*none/.test(css), "avatar dot transform is none");
+assert(/\.xfo-dot\s*\{[^}]*pointer-events:\s*none !important/.test(css), "avatar dot lets pointer events through");
+assert(/\.xfo-dot:hover[\s\S]*?pointer-events:\s*none !important/.test(css), "dot hover does not take the pointer");
+assert(!/\.xfo-dot\s*\{[^}]*cursor:\s*pointer/.test(css), "avatar dot does not switch the cursor");
 assert(/\.xfo-dot\[data-rel="mutual"\][\s\S]*?#68e050/.test(css), "mutual dot is green");
 assert(/\.xfo-dot\[data-rel="following"\][\s\S]*?#1d9bf0/.test(css), "you-follow dot is blue");
 assert(/\.xfo-dot\[data-rel="follower"\][\s\S]*?#ffe600/.test(css), "follows-you dot is yellow");

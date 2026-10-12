@@ -6,7 +6,7 @@
  */
 
 (() => {
-  const XFO_VERSION = "1.2.4";
+  const XFO_VERSION = "1.2.5";
   if (window.__xfoVersion === XFO_VERSION) return;
   if (typeof window.__xfoCleanup === "function") {
     try {
@@ -5009,6 +5009,56 @@
     delete host.dataset.xfoFocal;
   }
 
+  /**
+   * Status dots are paint only. No tooltip, hover card, cursor, or listener —
+   * pointer events fall through to x.com, including its own hover cards.
+   */
+  function inertStatusMark(el) {
+    if (!el || el.nodeType !== 1) return;
+    el.removeAttribute("title");
+    el.removeAttribute("aria-label");
+    el.removeAttribute("aria-describedby");
+    const hoverProps = [
+      "onclick",
+      "onmouseenter",
+      "onmouseover",
+      "onmouseleave",
+      "onmousemove",
+      "onmouseout",
+      "onwheel",
+      "onscroll",
+      "onpointerenter",
+      "onpointerover",
+      "onpointermove",
+      "onpointerleave",
+      "onpointerdown",
+      "onfocus",
+      "onfocusin"
+    ];
+    for (let i = 0; i < hoverProps.length; i++) {
+      if (el[hoverProps[i]]) el[hoverProps[i]] = null;
+    }
+    if (el.style) {
+      el.style.pointerEvents = "none";
+      if (el.style.cursor === "pointer") el.style.cursor = "";
+    }
+  }
+
+  function inertStatusDot(dot) {
+    inertStatusMark(dot);
+    let parent = dot && dot.parentElement;
+    // A wrapper we inserted around the mark must not catch hover or scroll.
+    while (
+      parent &&
+      parent.classList &&
+      (parent.classList.contains("xfo-dot-wrap") ||
+        parent.classList.contains("xfo-dot-host"))
+    ) {
+      inertStatusMark(parent);
+      parent = parent.parentElement;
+    }
+  }
+
   function ensureDot(host, relationship, user, focalX) {
     if (!host) return;
     const color = COLORS[relationship];
@@ -5042,6 +5092,8 @@
       dot.className = DOT_CLASS;
       host.appendChild(dot);
     }
+
+    inertStatusDot(dot);
 
     const relChanged = dot.dataset.rel !== relationship;
     const userChanged = dot.dataset.user !== user;
@@ -5084,15 +5136,7 @@
     }
 
     dot.classList.toggle("xfo-focal", focal);
-
-    const titleLabel = /^\d{6,}$/.test(String(user || ""))
-      ? "user " + user
-      : "@" + user;
-    const title = titleLabel + ": " + (LABELS[relationship] || relationship);
-    if (dot.title !== title) {
-      dot.title = title;
-      dot.setAttribute("aria-label", title);
-    }
+    inertStatusDot(dot);
 
     if (user && !/^\d{6,}$/.test(String(user))) {
       ensureMetrics(host, user, focal);

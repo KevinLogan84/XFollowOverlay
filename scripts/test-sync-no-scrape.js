@@ -80,9 +80,9 @@ assert(
   "rail Sync now uses --primary"
 );
 
-assert(manifest.version === "1.2.4", "manifest is 1.2.4");
-assert(/MARKETING_VERSION=1\.2\.4/.test(install), "install marketing version is 1.2.4");
-assert(/CURRENT_PROJECT_VERSION=146/.test(install), "install project version is 146");
+assert(manifest.version === "1.2.5", "manifest is 1.2.5");
+assert(/MARKETING_VERSION=1\.2\.5/.test(install), "install marketing version is 1.2.5");
+assert(/CURRENT_PROJECT_VERSION=147/.test(install), "install project version is 147");
 // v1.1.28: pure logic lives in tested shared modules that load before content.js.
 ["shared/metrics-days.js", "shared/graphql-timeline.js"].forEach((file) => {
   assert(

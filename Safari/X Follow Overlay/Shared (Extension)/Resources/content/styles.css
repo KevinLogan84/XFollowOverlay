@@ -27,6 +27,7 @@
   box-shadow: none !important;
   box-sizing: border-box !important;
   pointer-events: none !important;
+  cursor: inherit !important;
   z-index: 50 !important;
   display: block !important;
   transform: none !important;
@@ -52,8 +53,32 @@
   background-color: #ff3b30 !important;
 }
 
+/* Hover, focus, and any wrapper stay inert so x.com keeps the hit target. */
+.xfo-dot:hover,
+.xfo-dot:focus,
+.xfo-dot:focus-visible,
+.xfo-dot:active,
+.xfo-dot-wrap,
+.xfo-dot-wrap:hover,
+.xfo-dot-wrap:focus,
+.xfo-dot-wrap:focus-visible,
+.xfo-dot-wrap:active,
+.xfo-dot-host,
+.xfo-dot-host:hover,
+.xfo-dot-host:focus,
+.xfo-dot-host:focus-visible,
+.xfo-dot-host:active {
+  pointer-events: none !important;
+  cursor: inherit !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transform: none !important;
+  filter: none !important;
+}
+
 .xfo-dot svg {
   display: none !important;
+  pointer-events: none !important;
 }
 
 .xfo-dot.xfo-hidden {
