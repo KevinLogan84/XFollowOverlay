@@ -35,8 +35,8 @@ PROJ="$ROOT/Safari/X Follow Overlay/X Follow Overlay.xcodeproj"
 SCHEME="X Follow Overlay (macOS)"
 TEAM="KVVL57G45T"
 IDENTITY="Developer ID Application: Kevin Logan (KVVL57G45T)"
-VERSION="1.2.5"
-BUILD="147"
+VERSION="1.2.6"
+BUILD="148"
 DIST="$ROOT/dist"
 ARCHIVE="$DIST/X Follow Overlay.xcarchive"
 EXPORT_DIR="$DIST/export"
@@ -114,6 +114,59 @@ spctl -a -vv "$APP"
 echo "==> Re-zipping the stapled app..."
 ditto -c -k --keepParent "$APP" "$FINAL_ZIP"
 rm -f "$NOTARY_ZIP"
+
+# Archive, export, and DerivedData intermediates are real .app/.appex bundles.
+# Launch Services and pluginkit keep them, so Safari lists a second extension
+# next to the copy in /Applications. Unregister those built copies, delete
+# them, then refresh the installed app if it is there.
+echo "==> Unregistering built extension copies..."
+LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+DERIVED_DATA="${HOME}/Library/Developer/Xcode/DerivedData"
+
+unregister_built() {
+  local root="$1"
+  [[ -d "$root" ]] || return 0
+  local appex bundle
+  while IFS= read -r appex; do
+    [[ -n "$appex" ]] || continue
+    pluginkit -r "$appex" 2>/dev/null || true
+  done < <(find "$root" -name '*.appex' -type d -print 2>/dev/null || true)
+  while IFS= read -r bundle; do
+    [[ -n "$bundle" ]] || continue
+    "$LSREG" -u "$bundle" 2>/dev/null || true
+  done < <(find "$root" \( -name '*.app' -o -name '*.appex' \) -type d -print 2>/dev/null || true)
+}
+
+unregister_built "$EXPORT_DIR"
+unregister_built "$ARCHIVE"
+if [[ -d "$DERIVED_DATA" ]]; then
+  shopt -s nullglob
+  for intermediates in "$DERIVED_DATA"/X_Follow_Overlay-*/Build/Intermediates.noindex/ArchiveIntermediates; do
+    unregister_built "$intermediates"
+  done
+  shopt -u nullglob
+fi
+
+DSYM_ZIP="$DIST/X-Follow-Overlay-dSYMs.zip"
+rm -f "$DSYM_ZIP"
+if [[ -d "$ARCHIVE/dSYMs" ]] && ls "$ARCHIVE/dSYMs"/*.dSYM >/dev/null 2>&1; then
+  echo "==> Keeping dSYMs (private, not uploaded): $DSYM_ZIP"
+  ditto -c -k --keepParent "$ARCHIVE/dSYMs" "$DSYM_ZIP" || echo "Could not save dSYMs" >&2
+fi
+
+echo "==> Removing dist/export, dist/X Follow Overlay.xcarchive, and ArchiveIntermediates..."
+rm -rf "$EXPORT_DIR" "$ARCHIVE"
+if [[ -d "$DERIVED_DATA" ]]; then
+  shopt -s nullglob
+  for intermediates in "$DERIVED_DATA"/X_Follow_Overlay-*/Build/Intermediates.noindex/ArchiveIntermediates; do
+    rm -rf "$intermediates"
+  done
+  shopt -u nullglob
+fi
+
+if [[ -d '/Applications/X Follow Overlay.app' ]]; then
+  "$LSREG" -f '/Applications/X Follow Overlay.app' || true
+fi
 
 echo "Release zip: $FINAL_ZIP"
 

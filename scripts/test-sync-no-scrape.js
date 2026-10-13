@@ -80,9 +80,17 @@ assert(
   "rail Sync now uses --primary"
 );
 
-assert(manifest.version === "1.2.5", "manifest is 1.2.5");
-assert(/MARKETING_VERSION=1\.2\.5/.test(install), "install marketing version is 1.2.5");
-assert(/CURRENT_PROJECT_VERSION=147/.test(install), "install project version is 147");
+assert(manifest.version === "1.2.6", "manifest is 1.2.6");
+assert(/MARKETING_VERSION=1\.2\.6/.test(install), "install marketing version is 1.2.6");
+assert(/CURRENT_PROJECT_VERSION=148/.test(install), "install project version is 148");
+const releaseSh = read("scripts/release-macos.sh");
+assert(/VERSION="1\.2\.6"/.test(releaseSh), "release marketing version is 1.2.6");
+assert(/BUILD="148"/.test(releaseSh), "release build is 148");
+const pbx = read("Safari/X Follow Overlay/X Follow Overlay.xcodeproj/project.pbxproj");
+assert(/MARKETING_VERSION = 1\.2\.6;/.test(pbx), "Xcode marketing version is 1.2.6");
+assert(!/MARKETING_VERSION = 1\.2\.5;/.test(pbx), "Xcode marketing version is not 1.2.5");
+assert(/CURRENT_PROJECT_VERSION = 148;/.test(pbx), "Xcode project version is 148");
+assert(!/CURRENT_PROJECT_VERSION = 147;/.test(pbx), "Xcode project version is not 147");
 // v1.1.28: pure logic lives in tested shared modules that load before content.js.
 ["shared/metrics-days.js", "shared/graphql-timeline.js"].forEach((file) => {
   assert(

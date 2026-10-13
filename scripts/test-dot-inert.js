@@ -678,174 +678,315 @@ function articleFor(doc, user, opts) {
   return link;
 }
 
-const store = {
-  following: ["ada", "ben", "dee"],
-  followers: ["ada", "cy"],
-  followingIds: ["1", "2", "4"],
-  followerIds: ["1", "3"],
-  selfUsername: "me",
-  lastSyncAt: 1700000000000,
-  metricsCacheEpoch: "40",
-  metricsCache: {},
-  exMutuals: { v: 1, ids: { "4": "dee" }, handles: { dee: "4" } }
-};
 
-function storageGet(keys) {
-  const out = {};
-  const list = Array.isArray(keys) ? keys : typeof keys === "string" ? [keys] : Object.keys(keys || {});
-  list.forEach((key) => {
-    if (key in store) out[key] = store[key];
-  });
-  return Promise.resolve(out);
-}
-
-const doc = createDocument();
-const post = doc.createElement("a");
-post.setAttribute("data-testid", "SideNav_NewTweet_Button");
-post.setAttribute("href", "/compose/post");
-post.textContent = "Post";
-doc.body.appendChild(post);
-const adaHost = articleFor(doc, "ada", { titledDot: true });
-articleFor(doc, "ben");
-articleFor(doc, "cy");
-articleFor(doc, "dee");
-articleFor(doc, "eve");
-
-const fetches = [];
-const errors = [];
-const intervals = [];
-const timeouts = new Set();
-const ctx = {
-  console: console,
-  setTimeout(fn, ms, ...args) {
-    const id = setTimeout(() => {
-      timeouts.delete(id);
-      try {
-        fn(...args);
-      } catch (err) {
-        errors.push(err);
-      }
-    }, ms);
-    timeouts.add(id);
-    return id;
-  },
-  clearTimeout(id) {
-    timeouts.delete(id);
-    clearTimeout(id);
-  },
-  setInterval(fn, ms, ...args) {
-    const id = setInterval(() => {
-      try {
-        fn(...args);
-      } catch (err) {
-        errors.push(err);
-      }
-    }, ms);
-    intervals.push(id);
-    return id;
-  },
-  clearInterval(id) {
-    clearInterval(id);
-  },
-  requestAnimationFrame(fn) {
-    return setTimeout(fn, 0);
-  },
-  cancelAnimationFrame(id) {
-    clearTimeout(id);
-  },
-  Promise: Promise,
-  Date: Date,
-  Math: Math,
-  JSON: JSON,
-  Intl: Intl,
-  URL: URL,
-  URLSearchParams: URLSearchParams,
-  Map: Map,
-  Set: Set,
-  WeakMap: WeakMap,
-  WeakSet: WeakSet,
-  Array: Array,
-  Object: Object,
-  String: String,
-  Number: Number,
-  Boolean: Boolean,
-  RegExp: RegExp,
-  Error: Error,
-  BigInt: BigInt,
-  Symbol: Symbol,
-  isNaN: isNaN,
-  parseInt: parseInt,
-  encodeURIComponent: encodeURIComponent,
-  decodeURIComponent: decodeURIComponent,
-  AbortController: AbortController,
-  document: doc,
-  location: {
-    origin: "https://x.com",
-    protocol: "https:",
-    host: "x.com",
-    hostname: "x.com",
-    pathname: "/home",
-    href: "https://x.com/home",
-    search: "",
-    hash: ""
-  },
-  localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-  performance: { now: () => Date.now(), getEntriesByType: () => [] },
-  MutationObserver: function MutationObserver() {
-    return { observe() {}, disconnect() {}, takeRecords: () => [] };
-  },
-  IntersectionObserver: function IntersectionObserver() {
-    return { observe() {}, disconnect() {}, unobserve() {} };
-  },
-  matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-  getComputedStyle: () => ({ position: "static", getPropertyValue: () => "" }),
-  fetch: async (url) => {
-    fetches.push(String(url));
-    return { ok: false, status: 0, text: async () => "", json: async () => ({}), headers: { get: () => null } };
-  },
-  chrome: {
-    storage: {
-      local: {
-        get: storageGet,
-        set: async (obj) => Object.assign(store, obj),
-        remove: async (keys) => (Array.isArray(keys) ? keys : [keys]).forEach((key) => delete store[key])
-      },
-      onChanged: { addListener() {}, removeListener() {} }
-    },
-    runtime: {
-      id: "xfo-test",
-      getURL: (p) => "chrome-extension://test/" + p,
-      sendMessage: () => Promise.resolve(),
-      onMessage: { addListener() {}, removeListener() {} }
-    }
-  },
-  addEventListener() {},
-  removeEventListener() {},
-  postMessage() {},
-  innerWidth: 1280,
-  innerHeight: 800,
-  scrollY: 0
-};
-ctx.window = ctx;
-ctx.globalThis = ctx;
-ctx.self = ctx;
-vm.createContext(ctx);
-
-const scripts = manifest.content_scripts.find((entry) => !(entry.world)).js;
-scripts.forEach((file) => {
-  vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), ctx, { filename: file });
-});
+const openAdds = content.match(/classList\.add\(\s*"xfo-open"\s*\)/g) || [];
+assert(openAdds.length === 1, "xfo-open is added in exactly one place (the people icon), got " + openAdds.length);
+const openFn = content.slice(
+  content.indexOf("async function openRailPanel"),
+  content.indexOf("function isRailUiTarget")
+);
+const syncFn = content.slice(
+  content.indexOf("syncBtn.addEventListener"),
+  content.indexOf('panel.dataset.xfoSyncWired = "1"')
+);
+assert(openFn.includes('classList.add("xfo-open")'), "opening from the people icon adds xfo-open");
+assert(!syncFn.includes('classList.add("xfo-open")'), "Sync now never adds xfo-open itself");
+assert(syncFn.includes("if (!isRailPanelOpen(p)) return;"), "Sync now does not open a closed panel");
+assert(content.includes('text.indexOf("Extension context invalidated")'), "content recognizes an invalidated extension");
+assert(content.includes("function extensionConnectionDead"), "content detects a dead extension connection");
+assert(content.includes("function tearDownDeadExtension"), "a dead connection has one teardown");
+const cleanupFn = content.slice(content.indexOf("window.__xfoCleanup"), content.indexOf("function classifySynced"));
+assert(cleanupFn.includes("#xfo-rail"), "teardown removes the rail");
+assert(cleanupFn.includes(".xfo-dot"), "teardown removes status dots");
+const watchdogFn = content.slice(
+  content.indexOf("function startSyncWatchdog"),
+  content.indexOf("function extractUsernameFromHref")
+);
+assert(watchdogFn.includes("extensionConnectionDead"), "the watchdog interval checks the extension connection");
+assert(watchdogFn.includes("tearDownDeadExtension"), "the watchdog tears the page down when the connection is dead");
+const storageFn = content.slice(content.indexOf("async function storageGet"), content.indexOf("const RETIRED_STORAGE_KEYS"));
+assert(storageFn.includes("extensionContextInvalidated"), "storage calls catch an invalidated extension");
+assert(storageFn.includes("tearDownDeadExtension"), "storage calls tear down a dead connection");
+const messageFn = content.slice(content.indexOf("function sendExtensionMessage"), content.indexOf("function ensureSidebarRail"));
+assert(messageFn.includes("extensionContextInvalidated"), "messaging calls catch an invalidated extension");
+assert(messageFn.includes("tearDownDeadExtension"), "messaging calls tear down a dead connection");
+const railFn = content.slice(content.indexOf("async function refreshRailPanel"), content.indexOf("function isRailPanelOpen"));
+assert(railFn.includes("storageReadOk"), "the rail remembers whether storage could be read");
+assert(
+  /const empty =\s*storageReadOk &&/.test(railFn),
+  "a failed storage read cannot show the empty-data banner"
+);
 
 const HOVER_TYPES = ["mouseenter", "mouseover", "mouseleave", "mousemove", "wheel", "scroll", "pointerenter", "pointerover"];
+const NOISE_TYPES = HOVER_TYPES.concat(["focus", "focusin", "pointermove"]);
 
-function finish() {
-  intervals.forEach((id) => clearInterval(id));
-  timeouts.forEach((id) => clearTimeout(id));
+function bootPage(options) {
+  const pageStore = Object.assign({}, options.store || {});
+  const errors = [];
+  const intervals = [];
+  const intervalFns = [];
+  const timeouts = new Set();
+  const storageListeners = [];
+  const windowListeners = {};
+  const fetches = [];
+
+  function storageGet(keys) {
+    if (options.storageGet) return options.storageGet(keys, pageStore);
+    const out = {};
+    const list = Array.isArray(keys) ? keys : typeof keys === "string" ? [keys] : Object.keys(keys || {});
+    list.forEach((key) => {
+      if (key in pageStore) out[key] = pageStore[key];
+    });
+    return Promise.resolve(out);
+  }
+
+  function storageSet(obj) {
+    if (options.storageSet) return options.storageSet(obj, pageStore);
+    Object.assign(pageStore, obj);
+    return Promise.resolve();
+  }
+
+  const doc = createDocument();
+  const post = doc.createElement("a");
+  post.setAttribute("data-testid", "SideNav_NewTweet_Button");
+  post.setAttribute("href", "/compose/post");
+  post.textContent = "Post";
+  doc.body.appendChild(post);
+  const adaHost = articleFor(doc, "ada", { titledDot: options.titledDot !== false });
+  if (options.populateFeed !== false) {
+    articleFor(doc, "ben");
+    articleFor(doc, "cy");
+    articleFor(doc, "dee");
+    articleFor(doc, "eve");
+  }
+
+  const ctx = {
+    console: console,
+    setTimeout(fn, ms, ...args) {
+      const id = setTimeout(() => {
+        timeouts.delete(id);
+        try {
+          fn(...args);
+        } catch (err) {
+          errors.push(err);
+        }
+      }, ms);
+      timeouts.add(id);
+      return id;
+    },
+    clearTimeout(id) {
+      timeouts.delete(id);
+      clearTimeout(id);
+    },
+    setInterval(fn, ms, ...args) {
+      const id = setInterval(() => {
+        try {
+          fn(...args);
+        } catch (err) {
+          errors.push(err);
+        }
+      }, ms);
+      intervals.push(id);
+      intervalFns.push(fn);
+      return id;
+    },
+    clearInterval(id) {
+      clearInterval(id);
+    },
+    requestAnimationFrame(fn) {
+      return setTimeout(fn, 0);
+    },
+    cancelAnimationFrame(id) {
+      clearTimeout(id);
+    },
+    Promise: Promise,
+    Date: Date,
+    Math: Math,
+    JSON: JSON,
+    Intl: Intl,
+    URL: URL,
+    URLSearchParams: URLSearchParams,
+    Map: Map,
+    Set: Set,
+    WeakMap: WeakMap,
+    WeakSet: WeakSet,
+    Array: Array,
+    Object: Object,
+    String: String,
+    Number: Number,
+    Boolean: Boolean,
+    RegExp: RegExp,
+    Error: Error,
+    BigInt: BigInt,
+    Symbol: Symbol,
+    isNaN: isNaN,
+    parseInt: parseInt,
+    encodeURIComponent: encodeURIComponent,
+    decodeURIComponent: decodeURIComponent,
+    AbortController: AbortController,
+    document: doc,
+    location: {
+      origin: "https://x.com",
+      protocol: "https:",
+      host: "x.com",
+      hostname: "x.com",
+      pathname: "/home",
+      href: "https://x.com/home",
+      search: "",
+      hash: ""
+    },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    performance: { now: () => Date.now(), getEntriesByType: () => [] },
+    MutationObserver: function MutationObserver() {
+      return { observe() {}, disconnect() {}, takeRecords: () => [] };
+    },
+    IntersectionObserver: function IntersectionObserver() {
+      return { observe() {}, disconnect() {}, unobserve() {} };
+    },
+    matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    getComputedStyle: () => ({ position: "static", getPropertyValue: () => "" }),
+    fetch: async (url) => {
+      fetches.push(String(url));
+      return { ok: false, status: 0, text: async () => "", json: async () => ({}), headers: { get: () => null } };
+    },
+    chrome: {
+      storage: {
+        local: {
+          get: storageGet,
+          set: storageSet,
+          remove: async (keys) => (Array.isArray(keys) ? keys : [keys]).forEach((key) => delete pageStore[key])
+        },
+        onChanged: {
+          addListener(fn) {
+            storageListeners.push(fn);
+          },
+          removeListener(fn) {
+            const index = storageListeners.indexOf(fn);
+            if (index >= 0) storageListeners.splice(index, 1);
+          }
+        }
+      },
+      runtime: {
+        id: "xfo-test",
+        getURL: (p) => "chrome-extension://test/" + p,
+        sendMessage: () => Promise.resolve(),
+        onMessage: { addListener() {}, removeListener() {} }
+      }
+    },
+    addEventListener(type, fn) {
+      if (!windowListeners[type]) windowListeners[type] = [];
+      windowListeners[type].push(fn);
+    },
+    removeEventListener(type, fn) {
+      const list = windowListeners[type];
+      if (!list) return;
+      windowListeners[type] = list.filter((item) => item !== fn);
+    },
+    postMessage() {},
+    innerWidth: 1280,
+    innerHeight: 800,
+    scrollY: 0
+  };
+  ctx.window = ctx;
+  ctx.globalThis = ctx;
+  ctx.self = ctx;
+  vm.createContext(ctx);
+
+  const scripts = manifest.content_scripts.find((entry) => !(entry.world)).js;
+  scripts.forEach((file) => {
+    vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), ctx, { filename: file });
+  });
+
+  function finish() {
+    intervals.forEach((id) => clearInterval(id));
+    timeouts.forEach((id) => clearTimeout(id));
+  }
+
+  function fireWindow(type) {
+    (windowListeners[type] || []).forEach((fn) => {
+      try {
+        fn({ type: type, target: ctx, preventDefault() {}, stopPropagation() {} });
+      } catch (err) {
+        errors.push(err);
+      }
+    });
+  }
+
+  function fireIntervals() {
+    intervalFns.forEach((fn) => {
+      try {
+        fn();
+      } catch (err) {
+        errors.push(err);
+      }
+    });
+  }
+
+  function fireStorage(changes) {
+    storageListeners.forEach((fn) => {
+      try {
+        fn(changes, "local");
+      } catch (err) {
+        errors.push(err);
+      }
+    });
+  }
+
+  return { doc, ctx, adaHost, errors, fetches, finish, fireWindow, fireIntervals, fireStorage };
 }
+
+function panelIsOpen(doc) {
+  const panel = doc.getElementById("xfo-rail-panel");
+  return !!(panel && panel.classList.contains("xfo-open"));
+}
+
+function disturb(page) {
+  const dots = page.doc.querySelectorAll(".xfo-dot");
+  const btn = page.doc.querySelector(".xfo-rail-btn");
+  NOISE_TYPES.forEach((type) => {
+    if (btn) btn.dispatch(type);
+    dots.forEach((dot) => dot.dispatch(type));
+    if (page.adaHost) page.adaHost.dispatch(type);
+  });
+  page.fireWindow("scroll");
+  page.fireWindow("focus");
+  page.ctx.location.pathname = "/ada/followers";
+  page.ctx.location.href = "https://x.com/ada/followers";
+  page.fireIntervals();
+  page.fireStorage({
+    following: { newValue: [] },
+    followers: { newValue: [] },
+    followingIds: { newValue: [] },
+    followerIds: { newValue: [] },
+    followingTotal: { newValue: null },
+    followersTotal: { newValue: null },
+    lastSyncAt: { newValue: null }
+  });
+}
+
+function fail(err) {
+  console.error(err && err.stack ? err.stack : err);
+  process.exitCode = 1;
+}
+
+const populated = bootPage({
+  store: {
+    following: ["ada", "ben", "dee"],
+    followers: ["ada", "cy"],
+    followingIds: ["1", "2", "4"],
+    followerIds: ["1", "3"],
+    selfUsername: "me",
+    lastSyncAt: 1700000000000,
+    metricsCacheEpoch: "40",
+    metricsCache: {},
+    exMutuals: { v: 1, ids: { "4": "dee" }, handles: { dee: "4" } }
+  }
+});
 
 setTimeout(() => {
   try {
-    if (errors.length) throw errors[0];
+    if (populated.errors.length) throw populated.errors[0];
+    const doc = populated.doc;
     const dots = doc.querySelectorAll(".xfo-dot");
     assert(dots.length === 4, "four relationship dots are painted, got " + dots.length);
     const byRel = {};
@@ -877,39 +1018,181 @@ setTimeout(() => {
     assert(byRel.ex_mutual && byRel.ex_mutual.dataset.user === "dee", "was-mutual dot is painted");
     assert(!doc.querySelector('article a[href="/eve"] .xfo-dot'), "unknown accounts get no dot");
 
-    const adaWrap = adaHost.querySelector(".xfo-dot-wrap");
+    const adaWrap = populated.adaHost.querySelector(".xfo-dot-wrap");
     assert(adaWrap, "existing dot wrapper is still in the avatar");
-    assert(adaHost.style.pointerEvents !== "none", "avatar link still receives x.com hover");
-    assert(adaHost._listenerTypes().length === 0, "painting a dot does not listen on the avatar");
+    assert(populated.adaHost.style.pointerEvents !== "none", "avatar link still receives x.com hover");
+    assert(populated.adaHost._listenerTypes().length === 0, "painting a dot does not listen on the avatar");
 
-    const fetchesBefore = fetches.length;
-    dots.forEach((dot) => {
-      dot.dispatch("mouseenter");
-      dot.dispatch("mouseover");
-      dot.dispatch("wheel");
-      dot.dispatch("scroll");
-    });
-    const panelBefore = doc.getElementById("xfo-rail-panel");
-    assert(!panelBefore || !panelBefore.classList.contains("xfo-open"), "hovering a dot does not open the rail");
-    assert(fetches.length === fetchesBefore, "hovering or scrolling a dot does not fetch");
-
-    const btn = doc.querySelector(".xfo-rail-btn");
-    assert(btn, "people icon is in the rail");
-    assert(btn._listenerTypes().includes("click"), "people icon keeps its click listener");
-    assert(btn.getAttribute("title") === "X Follow Overlay", "people icon click target is unchanged");
-    btn.dispatch("click");
-    const panel = doc.getElementById("xfo-rail-panel");
-    assert(panel && panel.classList.contains("xfo-open"), "people icon click opens the rail");
-    assert(btn.getAttribute("aria-expanded") === "true", "people icon marks the rail expanded");
-    btn.dispatch("click");
-    assert(!panel.classList.contains("xfo-open"), "people icon click closes the rail again");
-    assert(btn.getAttribute("aria-expanded") === "false", "people icon marks the rail collapsed");
-
-    console.log("All inert-dot tests passed.");
+    const fetchesBefore = populated.fetches.length;
+    disturb(populated);
+    assert(!panelIsOpen(doc), "hover, scroll, focus, timers, route changes, and storage changes do not open the panel");
+    assert(populated.fetches.length === fetchesBefore, "hovering or scrolling a dot does not fetch");
   } catch (err) {
-    console.error(err && err.stack ? err.stack : err);
-    process.exitCode = 1;
-  } finally {
-    finish();
+    fail(err);
+    populated.finish();
+    return;
   }
+
+  setTimeout(() => {
+    try {
+      if (populated.errors.length) throw populated.errors[0];
+      const doc = populated.doc;
+      assert(
+        !panelIsOpen(doc),
+        "route changes, timers, and empty storage updates still leave the panel closed"
+      );
+      const btn = doc.querySelector(".xfo-rail-btn");
+      assert(btn, "people icon is in the rail");
+      assert(btn._listenerTypes().includes("click"), "people icon keeps its click listener");
+      assert(btn.getAttribute("title") === "X Follow Overlay", "people icon click target is unchanged");
+      btn.dispatch("click");
+      const panel = doc.getElementById("xfo-rail-panel");
+      assert(panel && panel.classList.contains("xfo-open"), "people icon click opens the rail");
+      assert(btn.getAttribute("aria-expanded") === "true", "people icon marks the rail expanded");
+      const syncBtn = panel.querySelector("[data-xfo-sync]");
+      assert(syncBtn, "Sync now is inside the panel");
+      syncBtn.dispatch("click");
+      assert(panel.classList.contains("xfo-open"), "Sync now inside an open panel keeps xfo-open");
+      btn.dispatch("click");
+      assert(!panel.classList.contains("xfo-open"), "people icon click closes the rail again");
+      assert(btn.getAttribute("aria-expanded") === "false", "people icon marks the rail collapsed");
+      syncBtn.dispatch("click");
+      assert(!panel.classList.contains("xfo-open"), "Sync now does not open a closed panel");
+
+      assert(doc.querySelectorAll(".xfo-dot").length === 4, "dots are still painted before the extension dies");
+      populated.ctx.chrome.runtime.id = "";
+      populated.fireIntervals();
+      assert(!doc.getElementById("xfo-rail"), "a dead extension connection removes the rail");
+      assert(!doc.getElementById("xfo-rail-panel"), "a dead extension connection removes the panel");
+      assert(doc.querySelectorAll(".xfo-dot").length === 0, "a dead extension connection removes the dots");
+    } catch (err) {
+      fail(err);
+      populated.finish();
+      return;
+    }
+    setTimeout(() => {
+      try {
+        if (populated.errors.length) throw populated.errors[0];
+        assert(!populated.doc.getElementById("xfo-rail"), "a dead connection does not restore the rail");
+        assert(!populated.doc.getElementById("xfo-rail-panel"), "a dead connection does not restore the panel");
+        assert(populated.doc.querySelectorAll(".xfo-dot").length === 0, "a dead connection does not restore dots");
+        console.log("All inert-dot tests passed.");
+      } catch (err) {
+        fail(err);
+      } finally {
+        populated.finish();
+      }
+    }, 150);
+  }, 700);
+}, 800);
+
+const emptyPage = bootPage({
+  store: { metricsCacheEpoch: "40", metricsCache: {} },
+  titledDot: false,
+  populateFeed: false
+});
+
+setTimeout(() => {
+  try {
+    if (emptyPage.errors.length) throw emptyPage.errors[0];
+    disturb(emptyPage);
+    assert(!panelIsOpen(emptyPage.doc), "empty follow data does not open the panel");
+  } catch (err) {
+    fail(err);
+    emptyPage.finish();
+    return;
+  }
+  setTimeout(() => {
+    try {
+      if (emptyPage.errors.length) throw emptyPage.errors[0];
+      assert(!panelIsOpen(emptyPage.doc), "empty follow data still does not open the panel");
+      const btn = emptyPage.doc.querySelector(".xfo-rail-btn");
+      assert(btn, "people icon exists with no follow data");
+      btn.dispatch("click");
+      const panel = emptyPage.doc.getElementById("xfo-rail-panel");
+      assert(panel && panel.classList.contains("xfo-open"), "people icon still opens the panel when follow data is empty");
+    } catch (err) {
+      fail(err);
+      emptyPage.finish();
+      return;
+    }
+    setTimeout(() => {
+      try {
+        if (emptyPage.errors.length) throw emptyPage.errors[0];
+        const errEl = emptyPage.doc.querySelector("[data-xfo-err]");
+        assert(errEl, "empty follow data has an error slot");
+        assert(
+          errEl.textContent === "No follow data yet — tap Sync now.",
+          "a readable empty store still shows the empty-data banner"
+        );
+      } catch (err) {
+        fail(err);
+      } finally {
+        emptyPage.finish();
+      }
+    }, 50);
+  }, 700);
+}, 800);
+
+const unreadable = bootPage({
+  store: {},
+  titledDot: false,
+  populateFeed: true,
+  storageGet() {
+    return Promise.reject(new Error("Read rail status timed out"));
+  },
+  storageSet() {
+    return Promise.reject(new Error("Write storage timed out"));
+  }
+});
+
+setTimeout(() => {
+  try {
+    if (unreadable.errors.length) throw unreadable.errors[0];
+    disturb(unreadable);
+    assert(!panelIsOpen(unreadable.doc), "unreadable storage does not open the panel");
+    const btn = unreadable.doc.querySelector(".xfo-rail-btn");
+    assert(btn, "people icon exists when storage cannot be read");
+    btn.dispatch("click");
+  } catch (err) {
+    fail(err);
+    unreadable.finish();
+    return;
+  }
+  setTimeout(() => {
+    try {
+      if (unreadable.errors.length) throw unreadable.errors[0];
+      const panel = unreadable.doc.getElementById("xfo-rail-panel");
+      assert(panel && panel.classList.contains("xfo-open"), "people icon opens the panel when storage cannot be read");
+      const errEl = panel.querySelector("[data-xfo-err]");
+      const followingEl = panel.querySelector("[data-xfo-following]");
+      const lastEl = panel.querySelector("[data-xfo-last]");
+      assert(errEl, "panel keeps its error slot when storage cannot be read");
+      assert(
+        errEl.textContent !== "No follow data yet — tap Sync now.",
+        "unreadable storage does not show the empty-data banner"
+      );
+      assert(errEl.hidden === true, "the empty-data banner stays hidden when storage cannot be read");
+      assert(followingEl && followingEl.textContent === "0", "following stays on the template 0");
+      assert(lastEl && lastEl.textContent === "Never", "last sync stays on the template Never");
+      unreadable.ctx.chrome.storage.local.get = () => Promise.reject(new Error("Extension context invalidated"));
+      unreadable.fireIntervals();
+    } catch (err) {
+      fail(err);
+      unreadable.finish();
+      return;
+    }
+    setTimeout(() => {
+      try {
+        if (unreadable.errors.length) throw unreadable.errors[0];
+        assert(!unreadable.doc.getElementById("xfo-rail-panel"), "invalidated storage tears down the panel");
+        assert(!unreadable.doc.getElementById("xfo-rail"), "invalidated storage tears down the rail");
+        assert(unreadable.doc.querySelectorAll(".xfo-dot").length === 0, "invalidated storage tears down dots");
+      } catch (err) {
+        fail(err);
+      } finally {
+        unreadable.finish();
+      }
+    }, 80);
+  }, 80);
 }, 800);

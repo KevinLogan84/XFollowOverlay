@@ -6,7 +6,7 @@
  */
 
 (() => {
-  const XFO_VERSION = "1.2.5";
+  const XFO_VERSION = "1.2.6";
   if (window.__xfoVersion === XFO_VERSION) return;
   if (typeof window.__xfoCleanup === "function") {
     try {
@@ -349,6 +349,8 @@
   let rateLimitToastObserver = null;
   let rateLimitToastTimer = null;
   let rateLimitToastCheckTimer = null;
+  let extensionDead = false;
+  const bootTimerIds = [];
 
   window.__xfoCleanup = () => {
     if (observer) {
@@ -396,6 +398,9 @@
       clearInterval(syncWatchdogTimer);
       syncWatchdogTimer = null;
     }
+    while (bootTimerIds.length) {
+      clearTimeout(bootTimerIds.pop());
+    }
     if (progressPersistTimer) {
       clearTimeout(progressPersistTimer);
       progressPersistTimer = null;
@@ -442,6 +447,20 @@
       }
       storageChangedHandler = null;
     }
+    if (api && api.runtime && api.runtime.onMessage && api.runtime.onMessage.removeListener) {
+      try {
+        api.runtime.onMessage.removeListener(onRuntimeMessage);
+      } catch (e) {
+        /* extension context may already be gone */
+      }
+    }
+    try {
+      document.removeEventListener("visibilitychange", onSyncWake);
+      window.removeEventListener("pageshow", onSyncWake);
+    } catch (e) {
+      /* ignore */
+    }
+    window.__xfoSyncWake = false;
     if (rateLimitToastObserver) {
       rateLimitToastObserver.disconnect();
       rateLimitToastObserver = null;
@@ -467,6 +486,9 @@
       budgetPersistTimer = null;
     }
     document.querySelectorAll("#xfo-rail, #xfo-rail-panel, .xfo-rail-panel").forEach((el) => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    document.querySelectorAll(".xfo-dot, .xfo-dot-wrap, .xfo-dot-host").forEach((el) => {
       if (el.parentNode) el.parentNode.removeChild(el);
     });
     railHost = null;
@@ -1047,7 +1069,9 @@
       startSync(true).then(() => {
         const panel = railPanelHost || document.getElementById("xfo-rail-panel");
         if (panel && panel.classList.contains("xfo-open")) {
-          refreshRailPanel(panel).catch(() => {});
+          refreshRailPanel(panel).catch((err) => {
+            if (extensionConnectionDead(err)) tearDownDeadExtension();
+          });
         }
       });
     }, delay);
@@ -1205,25 +1229,79 @@
     });
   }
 
+  function extensionContextInvalidated(err) {
+    const text = err && err.message != null ? String(err.message) : String(err == null ? "" : err);
+    return text.indexOf("Extension context invalidated") !== -1;
+  }
+
+  function extensionConnectionDead(err) {
+    if (extensionDead) return true;
+    try {
+      if (!api || !api.runtime || !api.runtime.id) return true;
+    } catch (e) {
+      return true;
+    }
+    return extensionContextInvalidated(err);
+  }
+
+  function tearDownDeadExtension() {
+    if (extensionDead) return;
+    extensionDead = true;
+    try {
+      if (typeof window.__xfoCleanup === "function") window.__xfoCleanup();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   async function storageGet(keys) {
-    return logged(
-      "storage read",
-      withTimeout(api.storage.local.get(keys), storageTimeout(), "Read storage")
-    );
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      throw new Error("Extension context invalidated");
+    }
+    try {
+      return await logged(
+        "storage read",
+        withTimeout(api.storage.local.get(keys), storageTimeout(), "Read storage")
+      );
+    } catch (err) {
+      if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+      throw err;
+    }
   }
 
   async function storageSet(obj) {
-    return logged(
-      "storage write",
-      withTimeout(api.storage.local.set(obj), storageTimeout(), "Write storage")
-    );
+    if (extensionDead) return;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      throw new Error("Extension context invalidated");
+    }
+    try {
+      return await logged(
+        "storage write",
+        withTimeout(api.storage.local.set(obj), storageTimeout(), "Write storage")
+      );
+    } catch (err) {
+      if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+      throw err;
+    }
   }
 
   async function storageRemove(keys) {
-    return logged(
-      "storage remove",
-      withTimeout(api.storage.local.remove(keys), storageTimeout(), "Remove storage")
-    );
+    if (extensionDead) return;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      throw new Error("Extension context invalidated");
+    }
+    try {
+      return await logged(
+        "storage remove",
+        withTimeout(api.storage.local.remove(keys), storageTimeout(), "Remove storage")
+      );
+    } catch (err) {
+      if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+      throw err;
+    }
   }
 
   /**
@@ -1622,11 +1700,16 @@
   let pageRestSeq = 0;
 
   function injectPageHook() {
+    if (extensionDead) return;
     if (document.documentElement.getAttribute("data-xfo-hook") === "1") {
       return;
     }
     if (document.getElementById("xfo-page-hook")) return;
     try {
+      if (extensionConnectionDead()) {
+        tearDownDeadExtension();
+        return;
+      }
       const s = document.createElement("script");
       s.id = "xfo-page-hook";
       s.src = api.runtime.getURL("content/page-hook.js");
@@ -1635,6 +1718,10 @@
       };
       (document.head || document.documentElement).appendChild(s);
     } catch (e) {
+      if (extensionContextInvalidated(e) || extensionConnectionDead(e)) {
+        tearDownDeadExtension();
+        return;
+      }
       // Isolated-world REST / GraphQL still run without the hook.
       debugLog("page hook inject", e);
     }
@@ -2002,11 +2089,13 @@
       ];
     try {
       const data = await storageGet(names);
+      if (extensionDead) throw new Error("Extension context invalidated");
       if (XApi && typeof XApi.keysFromStorage === "function") {
         return XApi.keysFromStorage(data);
       }
       return {};
     } catch (e) {
+      if (extensionContextInvalidated(e) || extensionConnectionDead(e)) throw e;
       return {};
     }
   }
@@ -3138,6 +3227,11 @@
   }
 
   function startSync(force) {
+    if (extensionDead) return null;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      return null;
+    }
     // Coalesce repeated rail taps into one in-flight run.
     // Retry only aborts a crawl that has gone silent. A live page-by-page
     // sync of hundreds of follows takes longer than the stuck timer.
@@ -3168,6 +3262,11 @@
   }
 
   async function recoverStuckSync() {
+    if (extensionDead) return;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      return;
+    }
     checkPageWatchdog();
     const hardMs =
       Sync && typeof Sync.hardMsFor === "function"
@@ -3213,25 +3312,49 @@
         await storageSet(Sync.expirePatch());
       }
     } catch (e) {
-      /* ignore */
+      if (extensionContextInvalidated(e) || extensionConnectionDead(e)) tearDownDeadExtension();
     }
   }
 
   function onSyncWake() {
+    if (extensionDead) return;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      return;
+    }
     if (document.visibilityState === "hidden") return;
     checkPageWatchdog();
     const panel = railPanelHost || document.getElementById("xfo-rail-panel");
     if (panel && panel.classList.contains("xfo-open")) {
-      refreshRailPanel(panel).catch(() => {});
+      refreshRailPanel(panel).catch((err) => {
+            if (extensionConnectionDead(err)) tearDownDeadExtension();
+          });
     }
   }
 
   function startSyncWatchdog() {
     if (syncWatchdogTimer) return;
     syncWatchdogTimer = setInterval(() => {
-      recoverStuckSync().catch(() => {});
+      try {
+        if (extensionConnectionDead()) {
+          tearDownDeadExtension();
+          return;
+        }
+      } catch (err) {
+        if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+        return;
+      }
+      if (extensionDead) return;
+      recoverStuckSync().catch((err) => {
+        if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+      });
+      if (extensionDead) return;
       const panel = railPanelHost || document.getElementById("xfo-rail-panel");
-      if (panel && panel.classList.contains("xfo-open")) refreshRailPanel(panel).catch(() => {});
+      if (panel && panel.classList.contains("xfo-open")) {
+        refreshRailPanel(panel).catch((err) => {
+          if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+        });
+      }
     }, 1000);
     if (!window.__xfoSyncWake) {
       window.__xfoSyncWake = true;
@@ -4704,6 +4827,7 @@
    * a face. Drop any leftover metrics nodes from an older build.
    */
   function kickVisibleMetrics(forceUnusable) {
+    if (extensionDead) return 0;
     void forceUnusable;
     stripMetricsNodes();
     return 0;
@@ -5208,6 +5332,7 @@
   }
 
   function runScan() {
+    if (extensionDead) return;
     if (!document.body) return;
     // SPA navigations (feed ↔ post) need a fresh focal layout pass.
     if (location.pathname !== lastPathname) {
@@ -5224,6 +5349,7 @@
   }
 
   function scan() {
+    if (extensionDead) return;
     if (syncInFlight) return;
     if (scrolling) {
       scanPendingAfterScroll = true;
@@ -5251,6 +5377,7 @@
   }
 
   function queueScan() {
+    if (extensionDead) return;
     if (syncInFlight) return;
     if (scrolling) {
       scanPendingAfterScroll = true;
@@ -5513,7 +5640,11 @@
   }
 
   async function refreshRailPanel(panel) {
-    if (!panel) return;
+    if (!panel || extensionDead) return;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      return;
+    }
     const storageKeys =
       (Sync && Sync.FOLLOW_STORAGE_KEYS) || [
         "following",
@@ -5532,12 +5663,17 @@
         "syncNote"
       ];
     let data = lastFollowSnapshot || snapshotFromCache();
+    let storageReadOk = true;
     try {
       const fresh = await withTimeout(
         api.storage.local.get(storageKeys),
         (Sync && Sync.STORAGE_MS) || 2000,
         "Read rail status"
       );
+      if (extensionDead || extensionConnectionDead()) {
+        tearDownDeadExtension();
+        return;
+      }
       data = Sync && typeof Sync.keepStorageSnapshot === "function"
         ? Sync.keepStorageSnapshot(fresh, data)
         : fresh && typeof fresh === "object" && Object.keys(fresh).length
@@ -5545,8 +5681,14 @@
           : data;
       rememberFollowSnapshot(data);
     } catch (e) {
+      if (extensionContextInvalidated(e) || extensionConnectionDead(e)) {
+        tearDownDeadExtension();
+        return;
+      }
+      storageReadOk = false;
       data = lastFollowSnapshot || snapshotFromCache();
     }
+    if (extensionDead) return;
     const snap =
       Sync && typeof Sync.followSnapshot === "function"
         ? Sync.followSnapshot(data, snapshotFromCache())
@@ -5568,14 +5710,20 @@
     const syncing = snap.syncStatus === "syncing";
     try {
       const keys = await readStoredApiKeys();
+      if (extensionDead) return;
       userHasApiKeys = !!(
         XApi &&
         typeof XApi.hasUserApiKeys === "function" &&
         XApi.hasUserApiKeys(keys)
       );
     } catch (eKeys) {
+      if (extensionContextInvalidated(eKeys) || extensionConnectionDead(eKeys)) {
+        tearDownDeadExtension();
+        return;
+      }
       /* keep the last answer so a storage hiccup does not flash the hint */
     }
+    if (extensionDead) return;
     if (snap.hideRateLimitKeysHint === true) keysHintDismissed = true;
     ensureSyncStatusExtras(panel);
     const now = Date.now();
@@ -5644,7 +5792,8 @@
         ? ui.progressLabel || snap.syncError || "Syncing follow lists…"
         : "";
       const empty =
-        Sync && typeof Sync.showEmptyFollowBanner === "function"
+        storageReadOk &&
+        (Sync && typeof Sync.showEmptyFollowBanner === "function"
           ? Sync.showEmptyFollowBanner(snap, { syncing: syncing, busy: !!syncInFlight })
           : !snap.lastSyncAt &&
             snap.followingTotal == null &&
@@ -5653,7 +5802,7 @@
             !followersList.length &&
             !asList(snap.followingIds).length &&
             !asList(snap.followerIds).length &&
-            !syncing;
+            !syncing);
       if (liveText) {
         errEl.hidden = false;
         errEl.classList.add("xfo-info");
@@ -5759,6 +5908,11 @@
   }
 
   async function openRailPanel() {
+    if (extensionDead) return;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      return;
+    }
     const rail = railHost || document.getElementById("xfo-rail");
     if (!rail) return;
     const btn = rail.querySelector(".xfo-rail-btn");
@@ -5830,8 +5984,8 @@
         async (e) => {
           stop(e);
           const p = railPanelHost || document.getElementById("xfo-rail-panel") || panel;
+          if (!isRailPanelOpen(p)) return;
           ignoreRailCloseUntil = Date.now() + 4000;
-          p.classList.add("xfo-open");
           syncBtn.textContent = "Syncing…";
           syncBtn.disabled = true;
           const errEl = p.querySelector("[data-xfo-err]");
@@ -5920,12 +6074,19 @@
     }
     return Theme.read(api, storageTimeout())
       .then((pref) => {
+        if (extensionDead) return;
         applyThemeToPanel(
           railPanelHost || document.getElementById("xfo-rail-panel"),
           pref
         );
       })
-      .catch(() => applyThemeToPanel(null, "system"));
+      .catch((err) => {
+        if (extensionContextInvalidated(err) || extensionConnectionDead(err)) {
+          tearDownDeadExtension();
+          return;
+        }
+        applyThemeToPanel(null, "system");
+      });
   }
 
   function loadAndApplyRailTheme(panel) {
@@ -5938,10 +6099,15 @@
     }
     return Theme.read(api, storageTimeout())
       .then((pref) => {
+        if (extensionDead) return;
         applyThemeToPanel(panel, pref);
         panel.dataset.xfoThemeApplied = "1";
       })
-      .catch(() => {
+      .catch((err) => {
+        if (extensionContextInvalidated(err) || extensionConnectionDead(err)) {
+          tearDownDeadExtension();
+          return;
+        }
         applyThemeToPanel(panel, "system");
         panel.dataset.xfoThemeApplied = "1";
       });
@@ -5963,7 +6129,9 @@
           : opt.getAttribute("data-theme-option");
         applyThemeToPanel(panel, pref);
         if (Theme) {
-          Theme.write(api, pref, storageTimeout()).catch(() => {});
+          Theme.write(api, pref, storageTimeout()).catch((err) => {
+            if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+          });
         } else {
           storageSet({ themePreference: pref }).catch(() => {});
         }
@@ -6101,9 +6269,7 @@
           storageSet({ hideRateLimitKeysHint: true }).catch(() => {});
           return;
         }
-        if (api.runtime && api.runtime.sendMessage) {
-          api.runtime.sendMessage({ type: "XFO_OPEN_KEYS" }).catch(() => {});
-        }
+        sendExtensionMessage({ type: "XFO_OPEN_KEYS" });
       },
       true
     );
@@ -6139,7 +6305,29 @@
     wireKeysHint(panel);
   }
 
+  function sendExtensionMessage(payload) {
+    if (extensionDead) return;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      return;
+    }
+    if (!api.runtime || !api.runtime.sendMessage) return;
+    let pending;
+    try {
+      pending = api.runtime.sendMessage(payload);
+    } catch (err) {
+      if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+      return;
+    }
+    if (pending && typeof pending.catch === "function") {
+      pending.catch((err) => {
+        if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+      });
+    }
+  }
+
   function ensureSidebarRail() {
+    if (extensionDead) return;
     const postBtn = findSideNavPostButton();
     if (!postBtn) return;
 
@@ -6194,6 +6382,11 @@
   }
 
   function onRuntimeMessage(msg, sender, sendResponse) {
+    if (extensionDead) return;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      return;
+    }
     if (!msg || !sender || sender.id !== api.runtime.id) return;
     if (msg.type === "XFO_SESSION") {
       currentSyncRoute().then((route) => {
@@ -6216,10 +6409,19 @@
   }
 
   if (api.runtime && api.runtime.onMessage && api.runtime.onMessage.addListener) {
-    api.runtime.onMessage.addListener(onRuntimeMessage);
+    try {
+      api.runtime.onMessage.addListener(onRuntimeMessage);
+    } catch (err) {
+      if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+    }
   }
 
   storageChangedHandler = (changes, area) => {
+    if (extensionDead) return;
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      return;
+    }
     if (area !== "local") return;
     if (
       changes.following ||
@@ -6232,6 +6434,7 @@
       changes.selfUsername
     ) {
       loadCacheFromStorage().then(() => {
+        if (extensionDead) return;
         queueScan();
         if (!syncInFlight) kickVisibleMetrics(false);
       });
@@ -6261,17 +6464,31 @@
     if (changes.themePreference) {
       applyThemeToPanel(panel, changes.themePreference.newValue);
     }
-    if (isRailPanelOpen(panel)) refreshRailPanel(panel).catch(() => {});
+    if (isRailPanelOpen(panel)) {
+      refreshRailPanel(panel).catch((err) => {
+        if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+      });
+    }
   };
-  api.storage.onChanged.addListener(storageChangedHandler);
+  try {
+    api.storage.onChanged.addListener(storageChangedHandler);
+  } catch (err) {
+    if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+  }
 
   async function init() {
+    if (extensionConnectionDead()) {
+      tearDownDeadExtension();
+      return;
+    }
     await loadCacheFromStorage();
+    if (extensionDead) return;
     try {
       await loadAndApplyPageTheme();
     } catch (eTheme) {
       applyThemeToPanel(null, "system");
     }
+    if (extensionDead) return;
     // Drop mass-sync leftovers — counts are lazy/on-screen only now.
     try {
       metricsFailed.clear();
@@ -6322,8 +6539,11 @@
         }
       }
     } catch (e) {
-      /* ignore */
+      if (extensionContextInvalidated(e) || extensionConnectionDead(e)) {
+        tearDownDeadExtension();
+      }
     }
+    if (extensionDead) return;
 
     startObserver();
     watchRateLimitToast();
@@ -6341,18 +6561,27 @@
     startSyncWatchdog();
     queueScan();
     kickVisibleMetrics(true);
-    setTimeout(() => {
+    function scheduleBoot(delay, fn) {
+      const id = setTimeout(() => {
+        const index = bootTimerIds.indexOf(id);
+        if (index >= 0) bootTimerIds.splice(index, 1);
+        if (extensionDead) return;
+        fn();
+      }, delay);
+      bootTimerIds.push(id);
+    }
+    scheduleBoot(500, () => {
       queueScan();
       kickVisibleMetrics(true);
-    }, 500);
-    setTimeout(() => {
+    });
+    scheduleBoot(1500, () => {
       queueScan();
       kickVisibleMetrics(true);
-    }, 1500);
-    setTimeout(() => {
+    });
+    scheduleBoot(3000, () => {
       queueScan();
       kickVisibleMetrics(true);
-    }, 3000);
+    });
   }
 
   if (document.readyState === "loading") {

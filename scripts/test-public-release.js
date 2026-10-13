@@ -119,6 +119,31 @@ assert(
 );
 assert(release.includes("xcrun stapler staple"), "release staples the app");
 assert(release.includes("spctl -a -vv"), "release checks the stapled app");
+const stapledZip = release.indexOf('ditto -c -k --keepParent "$APP" "$FINAL_ZIP"');
+const pluginAt = release.indexOf('pluginkit -r "$appex"');
+const lsUnregister = release.indexOf('"$LSREG" -u "$bundle"');
+const removeBuilt = release.indexOf('rm -rf "$EXPORT_DIR" "$ARCHIVE"');
+const lsRegisterInstalled = release.indexOf('"$LSREG" -f \'/Applications/X Follow Overlay.app\'');
+assert(stapledZip !== -1 && pluginAt > stapledZip, "pluginkit -r runs after the stapled zip is written");
+assert(lsUnregister > pluginAt, "lsregister -u runs after pluginkit -r");
+assert(removeBuilt > lsUnregister, "export and archive are deleted after they are unregistered");
+assert(
+  lsRegisterInstalled > removeBuilt,
+  "the installed app is re-registered after built copies are removed"
+);
+assert(release.includes("-name '*.appex'"), "release finds each built appex");
+assert(
+  release.includes("\\( -name '*.app' -o -name '*.appex' \\)"),
+  "release finds each built app and appex"
+);
+assert(
+  release.includes('X_Follow_Overlay-*/Build/Intermediates.noindex/ArchiveIntermediates'),
+  "release deletes DerivedData ArchiveIntermediates"
+);
+assert(
+  release.includes("if [[ -d '/Applications/X Follow Overlay.app' ]]"),
+  "lsregister -f runs only when the installed app exists"
+);
 assert(release.includes("X-Follow-Overlay-macOS.zip"), "final zip has the public name");
 assert(release.includes("gh release create"), "publish step exists");
 assert(/PUBLISH=0/.test(release), "publish is off unless --publish is passed");
