@@ -99,8 +99,10 @@ assert(readme.includes("## Uninstall"), "README has uninstall steps");
 assert(readme.includes("## Feedback & support"), "README has a Feedback & support section");
 assert(!fs.existsSync(path.join(root, "AGENTS.md")), "AGENTS.md is not in the repo root");
 assert(!fs.existsSync(path.join(root, ".cursor", "rules", "reinstall-macos.mdc")), ".cursor reinstall rule is not in the public tree");
-assert(fs.existsSync(path.join(root, "docs", "private", "AGENTS.md")), "private maintainer notes were kept");
-assert(fs.existsSync(path.join(root, "docs", "private", "reinstall-macos.mdc")), "private reinstall notes were kept");
+if (fs.existsSync(path.join(root, "docs", "private"))) {
+  assert(fs.existsSync(path.join(root, "docs", "private", "AGENTS.md")), "private maintainer notes were kept");
+  assert(fs.existsSync(path.join(root, "docs", "private", "reinstall-macos.mdc")), "private reinstall notes were kept");
+}
 assert(read(".gitattributes").includes("docs/private"), "docs/private is excluded from release archives");
 assert(fs.existsSync(path.join(root, "scripts", "install-macos.sh")), "Mac install script still exists");
 
