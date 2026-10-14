@@ -6,7 +6,7 @@
  */
 
 (() => {
-  const XFO_VERSION = "1.2.6";
+  const XFO_VERSION = "1.2.11";
   if (window.__xfoVersion === XFO_VERSION) return;
   if (typeof window.__xfoCleanup === "function") {
     try {
@@ -27,6 +27,8 @@
   const Budget = globalThis.XFOMetricsBudget;
   const Route = globalThis.XFOSyncRoute;
   const XApi = globalThis.XFOApiKeys;
+  const KeyConfirm = globalThis.XFOKeyConfirm;
+  const Incremental = globalThis.XFOIncrementalSync;
   const Days = globalThis.XFOMetricsDays;
   const Timeline = globalThis.XFOGraphqlTimeline;
   const {
@@ -295,12 +297,24 @@
   let syncBackoffUntil = 0;
   let syncProgressCount = null;
   let syncProgressSide = "";
+  /** "session" | "api" | null. Null keeps the automatic route (keys → API). */
+  let syncPrefer = null;
+  let syncPreferReady = false;
+  /** Safari content-script fetches to api.x.com fail CORS (status 0). */
+  let apiV2UseBackground = false;
   let pageAbort = null;
   let pageInFlightSince = 0;
   let pageSilentRetries = 0;
   let pageInFlightCursor = null;
   let keysHintDismissed = false;
   let userHasApiKeys = false;
+  let railKeyCache = null;
+  let railKeysVerifiedAt = 0;
+  let railApiSyncError = "";
+  /** Held for the whole stored-key probe so an echoed XFO_TEST_KEYS cannot nest. */
+  let keyProbeDepth = 0;
+  /** Held while a saved key is confirming, so an echoed postMessage cannot nest. */
+  let savedConfirmDepth = 0;
   let metricsHold = true;
   /** Set when a kick is requested during sync; flushed after sync / next scan. */
   let pendingVisibleMetricsKick = false;
@@ -321,7 +335,7 @@
   const Sync = globalThis.XFOSyncState;
   const RATE_LIMIT_ERROR =
     (Sync && Sync.RATE_LIMIT_ERROR) ||
-    "X is rate-limiting. Wait a minute and tap Sync now.";
+    "X is rate-limiting. Wait a minute and tap Sync free.";
   let syncInFlight = null;
   let syncStartedAtLocal = 0;
   let lastSyncProgressAt = 0;
@@ -812,7 +826,8 @@
         "metricsCacheEpoch",
         "passiveRelations",
         "exMutuals",
-        "followListReuse"
+        "followListReuse",
+        "syncPrefer"
       ]);
     } catch (e) {
       return;
@@ -821,6 +836,11 @@
       following: !!(data.followListReuse && data.followListReuse.following),
       followers: !!(data.followListReuse && data.followListReuse.followers)
     };
+    if (!syncPreferReady && Route && typeof Route.normalizePrefer === "function") {
+      const storedPrefer = Route.normalizePrefer(data.syncPrefer);
+      if (storedPrefer) syncPrefer = storedPrefer;
+      syncPreferReady = true;
+    }
     rememberFollowSnapshot(data);
     if (Passive) {
       // Storage lags the debounced flush; keep the newer copy of each entry.
@@ -1981,6 +2001,74 @@
     }
   }
 
+  async function directApiFetch(url, authorization) {
+    try {
+      const res = await fetch(url, {
+        credentials: "omit",
+        headers: {
+          authorization: authorization,
+          accept: "application/json"
+        }
+      });
+      const text = await res.text().catch(() => "");
+      let json = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch (e) {
+        json = null;
+      }
+      return {
+        ok: !!res.ok,
+        status: res.status,
+        json: json,
+        text: String(text || "").slice(0, 240),
+        headers: headerBag(
+          res.headers && res.headers.get && res.headers.get("retry-after"),
+          res.headers && res.headers.get && res.headers.get("x-rate-limit-reset")
+        )
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        status: 0,
+        json: null,
+        text: e && e.message ? e.message : String(e),
+        headers: {}
+      };
+    }
+  }
+
+  function backgroundApiFetch(url, authorization) {
+    const fail = (text) => ({
+      ok: false,
+      status: 0,
+      json: null,
+      text: text || "background unavailable",
+      headers: {}
+    });
+    const msg = { type: "XFO_API_FETCH", url: url, authorization: authorization };
+    if (!api.runtime || !api.runtime.sendMessage) return Promise.resolve(fail("background unavailable"));
+    try {
+      const pending = api.runtime.sendMessage(msg);
+      if (pending && typeof pending.then === "function") {
+        return pending.then((res) => res || fail("empty")).catch((e) => fail(e && e.message));
+      }
+    } catch (e) {
+      return Promise.resolve(fail(e && e.message));
+    }
+    return new Promise((resolve) => {
+      try {
+        api.runtime.sendMessage(msg, (res) => {
+          const err = api.runtime && api.runtime.lastError;
+          if (err || !res) resolve(fail(err && err.message));
+          else resolve(res);
+        });
+      } catch (e) {
+        resolve(fail(e && e.message));
+      }
+    });
+  }
+
   function makeRestClient() {
     return {
       request: restRequest,
@@ -2021,40 +2109,19 @@
             headers: {}
           };
         }
-        try {
-          const res = await fetch(url.toString(), {
-            credentials: "omit",
-            headers: {
-              authorization: authorization,
-              accept: "application/json"
-            }
-          });
-          const text = await res.text().catch(() => "");
-          let json = null;
-          try {
-            json = text ? JSON.parse(text) : null;
-          } catch (e) {
-            json = null;
-          }
-          return {
-            ok: !!res.ok,
-            status: res.status,
-            json: json,
-            text: String(text || "").slice(0, 240),
-            headers: headerBag(
-              res.headers && res.headers.get && res.headers.get("retry-after"),
-              res.headers && res.headers.get && res.headers.get("x-rate-limit-reset")
-            )
-          };
-        } catch (e) {
-          return {
-            ok: false,
-            status: 0,
-            json: null,
-            text: e && e.message ? e.message : String(e),
-            headers: {}
-          };
+        const target = url.toString();
+        const runBackground = () => {
+          apiV2UseBackground = true;
+          return backgroundApiFetch(target, authorization);
+        };
+        if (apiV2UseBackground) return runBackground();
+        if (XApi && typeof XApi.fetchApiV2WithFallback === "function") {
+          return XApi.fetchApiV2WithFallback(
+            () => directApiFetch(target, authorization),
+            runBackground
+          );
         }
+        return directApiFetch(target, authorization);
       },
       async wait(ms) {
         await waitOutBackoff(ms, syncProgressCount, syncProgressSide);
@@ -2100,13 +2167,57 @@
     }
   }
 
+  async function probeStoredKeys(override) {
+    // Safari re-delivers XFO_TEST_KEYS when this probe's XFO_API_FETCH is
+    // sent on the still-open channel. A nested call must not fetch again.
+    if (keyProbeDepth) {
+      return { ok: false, message: "Key check already running." };
+    }
+    keyProbeDepth += 1;
+    try {
+      const stored = await readStoredApiKeys();
+      const keys =
+        override && typeof override === "object" && XApi && typeof XApi.mergeKeyFields === "function"
+          ? XApi.mergeKeyFields(override, stored)
+          : stored;
+      const credential =
+        XApi && typeof XApi.credentialForRequest === "function"
+          ? XApi.credentialForRequest(keys)
+          : null;
+      if (!credential) {
+        return { ok: false, message: "Paste an API key." };
+      }
+      const userId = selfUserIdFromCookie();
+      if (!userId) {
+        return { ok: false, message: "Open x.com and sign in first." };
+      }
+      const req =
+        XApi && typeof XApi.keyProbeRequest === "function"
+          ? XApi.keyProbeRequest(userId)
+          : {
+              path: "/2/users/" + encodeURIComponent(String(userId)) + "/following",
+              params: { max_results: 1 }
+            };
+      const res = await makeRestClient().requestV2(req.path, req.params, credential);
+      if (XApi && typeof XApi.keyProbeVerdict === "function") return XApi.keyProbeVerdict(res);
+      if (res && res.ok) return { ok: true, message: "Keys work" };
+      return {
+        ok: false,
+        message: (res && res.text) || "X API error"
+      };
+    } finally {
+      keyProbeDepth -= 1;
+    }
+  }
+
   async function currentSyncRoute() {
     const keys = await readStoredApiKeys();
     if (Route && typeof Route.chooseSyncRoute === "function") {
       return Route.chooseSyncRoute({
         ct0: getCookie("ct0"),
         twid: getCookie("twid"),
-        keys: keys
+        keys: keys,
+        prefer: syncPrefer
       });
     }
     const userId = selfUserIdFromCookie();
@@ -2312,8 +2423,10 @@
   function walkGraphqlUsers(data) {
     const users = [];
     const ids = [];
+    const entries = [];
     const seen = new Set();
     const seenIds = new Set();
+    const seenEntries = new Set();
     let bottomCursor = null;
 
     function considerUser(node) {
@@ -2322,13 +2435,18 @@
       const handle = extractScreenNameFromUser(node);
       const restId =
         node.rest_id || (node.legacy && node.legacy.id_str) || null;
-      if (restId) {
-        const sid = String(restId);
+      const sid = restId ? String(restId) : "";
+      if (sid) {
         if (!seenIds.has(sid)) {
           seenIds.add(sid);
           ids.push(sid);
         }
         if (handle) rememberUserId(handle, sid);
+      }
+      const entryKey = sid + "|" + (handle || "");
+      if ((handle || sid) && !seenEntries.has(entryKey)) {
+        seenEntries.add(entryKey);
+        entries.push({ handle: handle || "", id: sid });
       }
       if (!handle) return;
       if (seen.has(handle)) return;
@@ -2385,7 +2503,7 @@
     }
 
     visit(data, 0);
-    return { users, ids, cursor: bottomCursor };
+    return { users, ids, entries, cursor: bottomCursor };
   }
 
   async function writeGraphqlCheckpoint(side, userId, users, cursor, ids) {
@@ -2532,13 +2650,16 @@
     }
   }
 
-  async function paginateFollowGraph(operationName, userId, checkpoint) {
+  async function paginateFollowGraph(operationName, userId, checkpoint, scan) {
     const op = operationName === "Following" ? "Following" : "Followers";
     const queryId = gqlIds[op];
     if (!queryId) throw new Error("Missing GraphQL id for " + op);
-
-    const resumed =
-      FollowRest && typeof FollowRest.resumeGraphqlCheckpoint === "function"
+    const incremental = !!(scan && scan.incremental && Incremental);
+    // X returns follow timelines newest-first. An incremental pass starts
+    // at the top and must not resume a half-finished full crawl.
+    const resumed = incremental
+      ? null
+      : FollowRest && typeof FollowRest.resumeGraphqlCheckpoint === "function"
         ? FollowRest.resumeGraphqlCheckpoint(checkpoint, op, userId)
         : null;
     const users = resumed && Array.isArray(resumed.users) ? resumed.users.slice() : [];
@@ -2551,14 +2672,23 @@
     const maxRateWaits =
       (FollowRest && Number(FollowRest.MAX_GRAPHQL_429_WAITS)) || 2;
     pageSilentRetries = 0;
+    const incState = incremental ? Incremental.createScan() : null;
+
+    async function checkpoint(nextCursor) {
+      if (incremental) return;
+      await writeGraphqlCheckpoint(op, userId, users, nextCursor, ids);
+    }
 
     while (pages < maxPages) {
       if (!syncStillCurrent()) throw new Error("Sync cancelled");
-      syncProgressCount = users.length;
+      const shown = incremental ? incState.scanned : users.length;
+      syncProgressCount = shown;
       syncProgressSide = op.toLowerCase();
-      noteSyncProgress("Syncing " + syncProgressSide + "… " + users.length);
+      noteSyncProgress(
+        (incremental ? "Checking " : "Syncing ") + syncProgressSide + "… " + shown
+      );
       // Save the cursor before the request so a frozen tab can resume here.
-      await writeGraphqlCheckpoint(op, userId, users, cursor, ids);
+      await checkpoint(cursor);
       const variables =
         FollowRest && typeof FollowRest.graphqlFollowVariables === "function"
           ? FollowRest.graphqlFollowVariables(userId, cursor, 100)
@@ -2594,7 +2724,7 @@
                   message: (Sync && Sync.STALL_ERROR) || "Sync stalled on this page."
                 };
           if (decision.action !== "retry-page" || (decision.cursor && decision.cursor !== cursor)) {
-            await writeGraphqlCheckpoint(op, userId, users, cursor, ids);
+            await checkpoint(cursor);
             throw new Error(
               decision.message ||
                 (Sync && Sync.STALL_ERROR) ||
@@ -2608,7 +2738,7 @@
         if (status === 429 || /429|rate.?limit/i.test(msg)) {
           rateWaits += 1;
           // Checkpoint first: the next sync resumes here even if we give up.
-          await writeGraphqlCheckpoint(op, userId, users, cursor, ids);
+          await checkpoint(cursor);
           if (rateWaits > maxRateWaits) {
             const giveUp = new Error(RATE_LIMIT_ERROR);
             giveUp.status = 429;
@@ -2627,14 +2757,31 @@
       }
 
       const parsed = walkGraphqlUsers(data);
-      for (let i = 0; i < parsed.users.length; i++) users.push(parsed.users[i]);
-      for (let r = 0; r < (parsed.ids || []).length; r++) ids.push(parsed.ids[r]);
-      syncProgressCount = users.length;
-      noteSyncProgress(
-        "Syncing " + op.toLowerCase() + "… " + users.length
-      );
+      if (incremental) {
+        const pageAccounts =
+          parsed.entries && parsed.entries.length
+            ? parsed.entries
+            : parsed.users.map((handle, index) => ({
+                handle: handle,
+                id: (parsed.ids && parsed.ids[index]) || ""
+              }));
+        Incremental.takeIncremental(
+          pageAccounts,
+          scan.knownHandles,
+          scan.knownIds,
+          incState
+        );
+        syncProgressCount = incState.scanned;
+        noteSyncProgress("Checking " + op.toLowerCase() + "… " + incState.scanned);
+        if (incState.stopped) break;
+      } else {
+        for (let i = 0; i < parsed.users.length; i++) users.push(parsed.users[i]);
+        for (let r = 0; r < (parsed.ids || []).length; r++) ids.push(parsed.ids[r]);
+        syncProgressCount = users.length;
+        noteSyncProgress("Syncing " + op.toLowerCase() + "… " + users.length);
+      }
 
-      if (!parsed.users.length && !parsed.cursor) {
+      if (!parsed.users.length && !(parsed.entries && parsed.entries.length) && !parsed.cursor) {
         exhausted = true;
         break;
       }
@@ -2644,10 +2791,20 @@
       }
       cursor = parsed.cursor;
       pages += 1;
-      await writeGraphqlCheckpoint(op, userId, users, cursor, ids);
+      await checkpoint(cursor);
       await politeSessionPause();
     }
 
+    if (incremental) {
+      return {
+        users: incState.added.map((account) => account.handle).filter(Boolean),
+        ids: uniqueIdsList(incState.added.map((account) => account.id)),
+        added: incState.added,
+        renames: incState.renames || [],
+        exhausted: false,
+        incremental: true
+      };
+    }
     return { users: users, ids: uniqueIdsList(ids), exhausted: exhausted };
   }
 
@@ -2658,22 +2815,36 @@
     return Array.from(new Set(asList(list).map((id) => String(id)).filter(Boolean)));
   }
 
-  async function collectFollowSide(side, userId, expected, previous, checkpoint) {
+  async function collectFollowSide(side, userId, expected, previous, checkpoint, scan) {
     if (!userId) {
       throw new Error(
-        "Could not resolve your account id. Stay on this tab and tap Sync now."
+        "Could not resolve your account id. Stay on this tab and tap Sync free."
       );
     }
-    const graph = await paginateFollowGraph(side, userId, checkpoint);
-    const users = uniqueLower(graph.users);
+    const graph = await paginateFollowGraph(side, userId, checkpoint, scan);
+    let users = uniqueLower(graph.users);
+    let ids = graph.ids || [];
+    let exhausted = !!graph.exhausted;
+    if (scan && scan.incremental && Incremental && graph.added) {
+      users = Incremental.mergeNewestFirst(previous, graph.added, "handle");
+      ids = Incremental.mergeNewestFirst(scan.knownIds || [], graph.added, "id");
+      if (
+        graph.renames &&
+        graph.renames.length &&
+        typeof Incremental.refreshHandles === "function"
+      ) {
+        users = Incremental.refreshHandles(users, graph.renames, scan.idMap);
+      }
+      exhausted = true;
+    }
     return {
       users: users,
-      ids: graph.ids || [],
+      ids: ids,
       ok: listLooksComplete(users, expected, previous, {
-        exhausted: graph.exhausted,
-        ids: graph.ids || []
+        exhausted: exhausted,
+        ids: ids
       }),
-      exhausted: graph.exhausted
+      exhausted: exhausted
     };
   }
 
@@ -2734,34 +2905,112 @@
     };
   }
 
+  async function reconcileFollowSide(
+    side,
+    userId,
+    expectedCount,
+    previousList,
+    knownIds,
+    checkpoint,
+    idMap,
+    allowIncremental,
+    profileCount
+  ) {
+    let incremental = !!allowIncremental;
+    if (
+      incremental &&
+      Incremental &&
+      typeof Incremental.sideNeedsFullReconcile === "function" &&
+      Incremental.sideNeedsFullReconcile({
+        profileCount: profileCount,
+        merged: previousList,
+        mergedIds: knownIds
+      })
+    ) {
+      incremental = false;
+    }
+    let result = await collectFollowSide(
+      side,
+      userId,
+      expectedCount,
+      previousList,
+      incremental ? null : checkpoint,
+      incremental
+        ? {
+            incremental: true,
+            knownHandles: previousList,
+            knownIds: knownIds,
+            idMap: idMap
+          }
+        : null
+    );
+    if (
+      incremental &&
+      Incremental &&
+      typeof Incremental.sideNeedsFullReconcile === "function" &&
+      Incremental.sideNeedsFullReconcile({
+        profileCount: profileCount,
+        merged: result.users,
+        mergedIds: result.ids
+      })
+    ) {
+      result = await collectFollowSide(
+        side,
+        userId,
+        expectedCount,
+        previousList,
+        checkpoint,
+        null
+      );
+      result.escalated = true;
+      incremental = false;
+    }
+    result.incremental = incremental;
+    return result;
+  }
+
   async function collectGraphqlGraph(
     self,
     expected,
     previous,
     stored,
     idMap,
-    confirmedGap
+    confirmedGap,
+    plan,
+    profiles
   ) {
-    const followingRes = await collectFollowSide(
+    const allow = !!(plan && plan.incremental);
+    profiles = profiles || {};
+    const followingRes = await reconcileFollowSide(
       "Following",
       self.userId,
       expected.following,
       previous.following,
-      stored && stored.syncCheckpoint
+      stored && stored.followingIds,
+      stored && stored.syncCheckpoint,
+      idMap,
+      allow,
+      profiles.following
     );
     throwIfSyncAborted();
-    const followersRes = await collectFollowSide(
+    const followerCheckpoint =
+      stored &&
+      stored.syncCheckpoint &&
+      stored.syncCheckpoint.side === "Followers"
+        ? stored.syncCheckpoint
+        : null;
+    const followersRes = await reconcileFollowSide(
       "Followers",
       self.userId,
       expected.followers,
       previous.followers,
-      stored &&
-        stored.syncCheckpoint &&
-        stored.syncCheckpoint.side === "Followers"
-        ? stored.syncCheckpoint
-        : null
+      stored && stored.followerIds,
+      followerCheckpoint,
+      idMap,
+      allow,
+      profiles.followers
     );
-    return packageFollowGraph(
+    const graph = packageFollowGraph(
       {
         following: followingRes.users,
         followers: followersRes.users,
@@ -2777,13 +3026,59 @@
       previous,
       confirmedGap
     );
+    graph.followingIncremental = !!followingRes.incremental;
+    graph.followersIncremental = !!followersRes.incremental;
+    return graph;
   }
 
   function syncWasAborted() {
     return !!(syncAbort && syncAbort.signal && syncAbort.signal.aborted);
   }
 
-  async function collectFollowGraph(self, expected, previous, stored, route) {
+  function restoreIncrementalCheckpoint(stored, graph, route) {
+    if (!route || route.path === "api" || !graph) return null;
+    const prior = stored && stored.syncCheckpoint;
+    if (!checkpointPending(prior)) return null;
+    const stayed =
+      prior.side === "Followers" ? !!graph.followersIncremental : !!graph.followingIncremental;
+    return stayed ? prior : null;
+  }
+
+  function checkpointPending(checkpoint) {
+    if (!checkpoint || typeof checkpoint !== "object") return false;
+    if (checkpoint.cursor) return true;
+    if (Array.isArray(checkpoint.users) && checkpoint.users.length) return true;
+    if (Array.isArray(checkpoint.ids) && checkpoint.ids.length) return true;
+    return false;
+  }
+
+  function planFreeSync(stored) {
+    const nextCount = (Number(stored && stored.freeSyncCount) || 0) + 1;
+    const full =
+      !Incremental || typeof Incremental.needsFullReconcile !== "function"
+        ? true
+        : Incremental.needsFullReconcile({
+            hadFullSync: !!(stored && stored.lastFullSyncAt),
+            lastFullSyncAt: stored && stored.lastFullSyncAt,
+            now: Date.now(),
+            freeSyncCount: nextCount,
+            hasCheckpoint: checkpointPending(stored && stored.syncCheckpoint)
+          });
+    return { full: !!full, incremental: !full, freeSyncCount: nextCount };
+  }
+
+  function apiFailureMessage(err) {
+    if (err && err.apiSyncError) return String(err.apiSyncError);
+    if (XApi && typeof XApi.formatApiSyncError === "function") {
+      return XApi.formatApiSyncError(
+        err && err.status,
+        err && err.apiBody != null ? err.apiBody : err && err.message
+      );
+    }
+    return err && err.message ? err.message : "X API error";
+  }
+
+  async function collectFollowGraph(self, expected, previous, stored, route, plan, official) {
     if (!route || !route.ok) {
       throw new Error(
         (route && route.reason) ||
@@ -2816,12 +3111,13 @@
           : null;
       if (!credential) {
         throw new Error(
-          "API keys are incomplete. Add them in the extension popup, or clear them to use the free session sync."
+          "API keys are incomplete. Add a bearer token, or all four keys under Advanced. The free sync still works."
         );
       }
+      noteSyncProgress("Syncing with your API keys…");
+      let apiResult;
       try {
-        noteSyncProgress("Syncing with your API keys…");
-        const apiResult = await FollowRest.collectViaV2(makeRestClient(), {
+        apiResult = await FollowRest.collectViaV2(makeRestClient(), {
           screenName: self.username,
           userId: self.userId,
           idMap: idMap,
@@ -2832,31 +3128,44 @@
           previousFollowers: previous.followers,
           confirmedGap: confirmedGap
         });
-        const apiGraph = packageFollowGraph(
-          apiResult,
-          idMap,
-          expected,
-          previous,
-          confirmedGap
-        );
-        if (apiGraph.followingOk && apiGraph.followersOk) return apiGraph;
-        noteSyncProgress("API list incomplete — using your x.com session…");
       } catch (err) {
         if (syncWasAborted()) throw err;
         const msg = err && err.message ? err.message : String(err);
         if (/cancelled/i.test(msg)) throw err;
-        noteSyncProgress("API keys unavailable — using your x.com session…");
+        const apiSyncError = apiFailureMessage(err);
+        const wrapped = new Error(apiSyncError);
+        wrapped.status = err && err.status;
+        wrapped.apiSyncError = apiSyncError;
+        throw wrapped;
       }
+      const apiGraph = packageFollowGraph(
+        apiResult,
+        idMap,
+        expected,
+        previous,
+        confirmedGap
+      );
+      if (apiGraph.followingOk && apiGraph.followersOk) return apiGraph;
+      const incomplete = new Error("X API list was incomplete.");
+      incomplete.apiSyncError = incomplete.message;
+      throw incomplete;
     }
 
-    noteSyncProgress("Syncing from your x.com session…");
+    noteSyncProgress(
+      plan && plan.incremental ? "Checking new follows…" : "Syncing from your x.com session…"
+    );
     return collectGraphqlGraph(
       self,
       expected,
       previous,
       stored,
       idMap,
-      confirmedGap
+      confirmedGap,
+      plan,
+      {
+        following: official && official.following,
+        followers: official && official.followers
+      }
     );
   }
 
@@ -2873,6 +3182,7 @@
       await storageSet({
         syncStatus: "syncing",
         syncError: null,
+        apiSyncError: null,
         syncStartedAt: startedAt
       });
     } catch (eSet) {
@@ -2901,7 +3211,9 @@
             "followersTotal",
             "followIdMap",
             "syncCheckpoint",
-            "syncConfirmedGap"
+            "syncConfirmedGap",
+            "lastFullSyncAt",
+            "freeSyncCount"
           ]);
         } catch (eGet) {
           stored = {};
@@ -2918,6 +3230,14 @@
         official = FollowRest
           ? FollowRest.mergeOfficialCounts(official, lastSignedInOfficial)
           : official;
+        if (official.following == null || official.followers == null) {
+          official = await fetchOfficialCounts(selfUsername, self.userId).catch(
+            () => official
+          );
+          official = FollowRest
+            ? FollowRest.mergeOfficialCounts(official, lastSignedInOfficial)
+            : official;
+        }
         const expectFollowing =
           coalesceCount(
             official.following,
@@ -2930,12 +3250,15 @@
             stored.followersTotal,
             prevFollowers.length
           ) || 0;
+        const plan = route.path === "session" ? planFreeSync(stored) : null;
         const graph = await collectFollowGraph(
           self,
           { following: expectFollowing, followers: expectFollowers },
           { following: prevFollowing, followers: prevFollowers },
           stored,
-          route
+          route,
+          plan,
+          official
         );
         let following = graph.following;
         let followers = graph.followers;
@@ -3015,7 +3338,7 @@
               " following and " +
               foundR +
               (wantR ? " of " + wantR : "") +
-              " followers. Leave this tab open and tap Sync now."
+              " followers. Leave this tab open and tap Sync free."
           );
         }
         return {
@@ -3061,7 +3384,25 @@
             selfId: self.userId
           },
           followingReused: followingReused,
-          followersReused: followersReused
+          followersReused: followersReused,
+          freeSyncCount: plan ? plan.freeSyncCount : null,
+          bothListsFetched:
+            !followingReused &&
+            !followersReused &&
+            (route.path === "api" ||
+              (!graph.followingIncremental && !graph.followersIncremental)),
+          preserveCheckpoint: !!(
+            route.path !== "api" &&
+            (graph.followingIncremental || graph.followersIncremental)
+          ),
+          restoreCheckpoint: restoreIncrementalCheckpoint(stored, graph, route),
+          lastFullSyncAt:
+            !followingReused &&
+            !followersReused &&
+            (route.path === "api" ||
+              (!graph.followingIncremental && !graph.followersIncremental))
+              ? Date.now()
+              : stored.lastFullSyncAt || null
         };
       })().finally(() => {
         allowSyncRetries = false;
@@ -3119,16 +3460,24 @@
         syncBackoffUntil: null,
         syncProgressCount: null,
         syncProgressSide: "",
+        apiSyncError: null,
         followListReuse: {
           following: !!result.followingReused,
           followers: !!result.followersReused
         }
       };
       followListReuse = saved.followListReuse;
-      if (!result.keepCheckpoint) saved.syncCheckpoint = null;
+      if (result.restoreCheckpoint) saved.syncCheckpoint = result.restoreCheckpoint;
+      else if (!result.keepCheckpoint) saved.syncCheckpoint = null;
+      if (result.freeSyncCount != null) saved.freeSyncCount = result.freeSyncCount;
+      if (result.lastFullSyncAt) saved.lastFullSyncAt = result.lastFullSyncAt;
       if (Passive && passiveStore) {
-        // The lists just fetched supersede anything X said before this run.
-        passiveStore = Passive.prune(passiveStore, { before: startedAt });
+        // Incremental runs only add accounts, so an unfollow seen while
+        // browsing still has to correct the dot. Drop that evidence only
+        // after a full walk or an API sync actually replaced both lists.
+        if (result.bothListsFetched) {
+          passiveStore = Passive.prune(passiveStore, { before: startedAt });
+        }
         const followingSet = new Set(asList(saved.following).map((h) => String(h).toLowerCase()));
         const followerSet = new Set(asList(saved.followers).map((h) => String(h).toLowerCase()));
         const followingIdSet = new Set(asList(saved.followingIds).map(String));
@@ -3209,6 +3558,17 @@
         patch.syncBackoffUntil = null;
         patch.syncProgressLabel = "";
         patch.lastSyncProgressAt = null;
+        patch.apiSyncError = err && err.apiSyncError ? err.apiSyncError : null;
+        if (
+          syncPrefer === "api" &&
+          KeyConfirm &&
+          typeof KeyConfirm.clearsKeyVerification === "function" &&
+          KeyConfirm.clearsKeyVerification(err && err.status)
+        ) {
+          patch.keysVerifiedAt = null;
+          const rejectedPanel = railPanelHost || document.getElementById("xfo-rail-panel");
+          if (rejectedPanel && isRailPanelOpen(rejectedPanel)) showExtensionKeyFrame(rejectedPanel);
+        }
         syncBackoffUntil = 0;
         await storageSet(patch);
       } catch (eStore) {
@@ -3226,7 +3586,7 @@
     }
   }
 
-  function startSync(force) {
+  function startSync(force, prefer) {
     if (extensionDead) return null;
     if (extensionConnectionDead()) {
       tearDownDeadExtension();
@@ -3242,6 +3602,19 @@
     if (syncInFlight) {
       if (!force || syncStillProgressing()) return syncInFlight;
       abortSyncRun();
+    }
+    if (prefer === "api" || prefer === "session" || prefer === "free") {
+      const normalized =
+        Route && typeof Route.normalizePrefer === "function"
+          ? Route.normalizePrefer(prefer)
+          : prefer === "free"
+            ? "session"
+            : prefer;
+      if (normalized) {
+        syncPrefer = normalized;
+        syncPreferReady = true;
+        storageSet({ syncPrefer: normalized }).catch(() => {});
+      }
     }
     const gen = ++syncGeneration;
     syncAbort = new AbortController();
@@ -3285,7 +3658,7 @@
       await storageSet(
         (Sync && Sync.expirePatch()) || {
           syncStatus: "error",
-          syncError: "Sync timed out. Keep x.com open and tap Sync now to retry.",
+          syncError: "Sync timed out. Keep x.com open and tap Retry sync.",
           syncStartedAt: null
         }
       );
@@ -5711,6 +6084,7 @@
     try {
       const keys = await readStoredApiKeys();
       if (extensionDead) return;
+      railKeyCache = keys;
       userHasApiKeys = !!(
         XApi &&
         typeof XApi.hasUserApiKeys === "function" &&
@@ -5803,22 +6177,26 @@
             !asList(snap.followingIds).length &&
             !asList(snap.followerIds).length &&
             !syncing);
+      const storedError =
+        XApi && typeof XApi.railErrorText === "function"
+          ? XApi.railErrorText(snap)
+          : snap.apiSyncError || snap.syncError || "";
       if (liveText) {
         errEl.hidden = false;
         errEl.classList.add("xfo-info");
         errEl.textContent = liveText;
-      } else if (snap.syncError) {
+      } else if (storedError) {
         errEl.hidden = false;
         errEl.classList.remove("xfo-info");
-        errEl.textContent = snap.syncError;
+        errEl.textContent = storedError;
       } else if (empty) {
         errEl.hidden = false;
         errEl.classList.remove("xfo-info");
-        errEl.textContent = "No follow data yet — tap Sync now.";
+        errEl.textContent = "No follow data yet — tap Sync free.";
       } else if (stuck) {
         errEl.hidden = false;
         errEl.classList.remove("xfo-info");
-        errEl.textContent = "Sync looks stuck — tap Sync now to retry.";
+        errEl.textContent = "Sync looks stuck — tap Retry sync.";
       } else if (snap.syncNote) {
         errEl.hidden = false;
         errEl.classList.add("xfo-info");
@@ -5856,13 +6234,20 @@
         readme.href = Sync.KEYS_HINT_README_URL;
       }
     }
-    if (syncBtn) {
-      const label = Sync ? Sync.buttonText(ui) : stuck ? "Retry sync" : syncing ? "Syncing…" : "Sync now";
-      const pulsing = !!(Sync && Sync.showSyncing(ui));
-      syncBtn.disabled = Sync ? Sync.buttonDisabled(ui) : syncing && !stuck;
-      syncBtn.textContent = label;
-      syncBtn.classList.toggle("is-syncing", pulsing);
-    }
+    const pulsing = !!(Sync && Sync.showSyncing(ui));
+    const syncDisabled = Sync ? Sync.buttonDisabled(ui) : syncing && !stuck;
+    panel.querySelectorAll("[data-xfo-sync]").forEach((button) => {
+      const apiChoice = button.getAttribute("data-xfo-sync") === "api";
+      button.disabled = syncDisabled;
+      button.textContent = pulsing
+        ? "Syncing…"
+        : stuck
+          ? "Retry sync"
+          : apiChoice
+            ? "Sync with API keys"
+            : "Sync free";
+      button.classList.toggle("is-syncing", pulsing);
+    });
   }
 
   let ignoreRailCloseUntil = 0;
@@ -5979,33 +6364,40 @@
     });
 
     if (panel.dataset.xfoSyncWired !== "1") {
-      syncBtn.addEventListener(
-        "click",
-        async (e) => {
-          stop(e);
-          const p = railPanelHost || document.getElementById("xfo-rail-panel") || panel;
-          if (!isRailPanelOpen(p)) return;
-          ignoreRailCloseUntil = Date.now() + 4000;
-          syncBtn.textContent = "Syncing…";
-          syncBtn.disabled = true;
-          const errEl = p.querySelector("[data-xfo-err]");
-          if (errEl) {
-            errEl.hidden = true;
-            errEl.textContent = "";
-          }
-          try {
-            await startSync(true);
-          } finally {
-            ignoreRailCloseUntil = Date.now() + 800;
-            try {
-              await refreshRailPanel(p);
-            } catch (err) {
-              /* keep the card open */
+      panel.querySelectorAll("[data-xfo-sync]").forEach((syncBtn) => {
+        syncBtn.addEventListener(
+          "click",
+          async (e) => {
+            stop(e);
+            const p = railPanelHost || document.getElementById("xfo-rail-panel") || panel;
+            if (!isRailPanelOpen(p)) return;
+            const choice = syncBtn.getAttribute("data-xfo-sync") === "api" ? "api" : "session";
+            if (choice === "api") {
+              beginApiSyncFromRail(p, syncBtn);
+              return;
             }
-          }
-        },
-        true
-      );
+            ignoreRailCloseUntil = Date.now() + 4000;
+            syncBtn.textContent = "Syncing…";
+            syncBtn.disabled = true;
+            const errEl = p.querySelector("[data-xfo-err]");
+            if (errEl) {
+              errEl.hidden = true;
+              errEl.textContent = "";
+            }
+            try {
+              await startSync(true, choice);
+            } finally {
+              ignoreRailCloseUntil = Date.now() + 800;
+              try {
+                await refreshRailPanel(p);
+              } catch (err) {
+                /* keep the card open */
+              }
+            }
+          },
+          true
+        );
+      });
       panel.dataset.xfoSyncWired = "1";
     }
 
@@ -6169,6 +6561,390 @@
     );
   }
 
+  function railKeyFrameHTML() {
+    return '<iframe class="xfo-key-frame" data-xfo-key-frame title="API keys" hidden></iframe>';
+  }
+
+  function keysFrameLocation() {
+    try {
+      const url = api.runtime.getURL("popup/keys-frame.html");
+      const origin =
+        KeyConfirm && typeof KeyConfirm.extensionOrigin === "function"
+          ? KeyConfirm.extensionOrigin(url)
+          : "";
+      if (!url || !origin) return null;
+      return { url: url, origin: origin };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function postToKeysFrame(frame, payload) {
+    const ext = keysFrameLocation();
+    if (!ext || !frame || !frame.contentWindow || !frame.contentWindow.postMessage) return;
+    try {
+      frame.contentWindow.postMessage(payload, ext.origin);
+    } catch (e) {
+      /* the frame posts ready after its document loads */
+    }
+  }
+
+  function repositionOpenRail(panel) {
+    const rail = railHost || document.getElementById("xfo-rail");
+    const btn = rail && rail.querySelector(".xfo-rail-btn");
+    positionRailPanel(btn, panel);
+  }
+
+  function keyFormHostKind(ext) {
+    if (KeyConfirm && typeof KeyConfirm.hostForKeyForm === "function") {
+      return KeyConfirm.hostForKeyForm({
+        extensionUrl: ext && ext.url,
+        pageOrigin: location.origin
+      });
+    }
+    return ext && ext.url ? "frame" : "fallback";
+  }
+
+  function hideKeyFrame(panel) {
+    const frame = panel && panel.querySelector("[data-xfo-key-frame]");
+    if (!frame) return;
+    frame.hidden = true;
+  }
+
+  function hideKeyConfirm(panel) {
+    const host = panel || railPanelHost || document.getElementById("xfo-rail-panel");
+    if (!host) return;
+    hideKeyFrame(host);
+    const note = host.querySelector("[data-xfo-key-fallback]");
+    if (note) {
+      note.hidden = true;
+      note.textContent = "";
+    }
+  }
+
+  function startConfirmedSync(prefer) {
+    const panel = railPanelHost || document.getElementById("xfo-rail-panel");
+    hideKeyConfirm(panel);
+    startSync(true, prefer);
+    if (panel && isRailPanelOpen(panel)) {
+      refreshRailPanel(panel).catch((err) => {
+        if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+      });
+    }
+  }
+
+  function postKeyFrameStatus(message) {
+    const panel = railPanelHost || document.getElementById("xfo-rail-panel");
+    const frame = panel && panel.querySelector("[data-xfo-key-frame]");
+    postToKeysFrame(frame, {
+      source: "xfo-content",
+      action: "probe-status",
+      message: message ? String(message).slice(0, 240) : ""
+    });
+  }
+
+  async function confirmSavedThenSync() {
+    if (savedConfirmDepth) return;
+    savedConfirmDepth += 1;
+    try {
+      let keys = railKeyCache || {};
+      let verifiedAt = railKeysVerifiedAt;
+      let apiError = railApiSyncError || "";
+      try {
+        keys = await readStoredApiKeys();
+        const extra = await storageGet(["keysVerifiedAt", "apiSyncError"]);
+        verifiedAt = Number(extra && extra.keysVerifiedAt) || 0;
+        apiError = extra && extra.apiSyncError ? String(extra.apiSyncError) : "";
+        railKeyCache = keys;
+        railKeysVerifiedAt = verifiedAt;
+        railApiSyncError = apiError;
+        userHasApiKeys = !!(
+          XApi &&
+          typeof XApi.hasUserApiKeys === "function" &&
+          XApi.hasUserApiKeys(keys)
+        );
+      } catch (err) {
+        if (extensionContextInvalidated(err) || extensionConnectionDead(err)) {
+          tearDownDeadExtension();
+          return;
+        }
+      }
+      if (extensionDead) return;
+      if (!XApi || typeof XApi.hasUserApiKeys !== "function" || !XApi.hasUserApiKeys(keys)) return;
+      const verified =
+        KeyConfirm && typeof KeyConfirm.keysAreVerified === "function"
+          ? KeyConfirm.keysAreVerified({ keysVerifiedAt: verifiedAt, apiSyncError: apiError })
+          : verifiedAt > 0 && !apiError;
+      if (verified) {
+        postKeyFrameStatus("Syncing with your API keys…");
+        startConfirmedSync("api");
+        return;
+      }
+      let result;
+      try {
+        result = await probeStoredKeys(keys);
+      } catch (err) {
+        result = {
+          ok: false,
+          status: err && err.status,
+          message: err && err.message ? err.message : "X API error"
+        };
+      }
+      const revoke =
+        KeyConfirm && typeof KeyConfirm.probeRevokesVerification === "function"
+          ? KeyConfirm.probeRevokesVerification(result)
+          : false;
+      if (!result || !result.ok) {
+        postKeyFrameStatus((result && result.message) || "X API error");
+        if (revoke) {
+          railKeysVerifiedAt = 0;
+          try {
+            await storageSet({ keysVerifiedAt: null });
+          } catch (e) {
+            /* the extension frame already shows the probe error */
+          }
+        }
+        return;
+      }
+      const at = Date.now();
+      railKeysVerifiedAt = at;
+      railApiSyncError = "";
+      try {
+        await storageSet({ keysVerifiedAt: at, apiSyncError: null });
+      } catch (e) {
+        /* sync can still use the keys already stored */
+      }
+      postKeyFrameStatus("Syncing with your API keys…");
+      startConfirmedSync("api");
+    } finally {
+      savedConfirmDepth -= 1;
+    }
+  }
+
+  function mountKeyFrame(panel, url) {
+    const old = panel.querySelector("[data-xfo-key-frame]");
+    const frame = document.createElement("iframe");
+    frame.className = "xfo-key-frame";
+    frame.title = "API keys";
+    frame.setAttribute("data-xfo-key-frame", "");
+    // Safari will not load a web-accessible extension page from an
+    // iframe whose document is still about:blank. Set src first.
+    frame.setAttribute("src", url);
+    if (old && old.parentNode && old.parentNode.insertBefore) {
+      old.parentNode.insertBefore(frame, old);
+      if (old.parentNode.removeChild) old.parentNode.removeChild(old);
+    } else {
+      const card = panel.querySelector(".xfo-rail-card") || panel;
+      card.appendChild(frame);
+    }
+    return frame;
+  }
+
+  function showExtensionKeyFrame(panel) {
+    const ext = keysFrameLocation();
+    if (!panel || !ext) return;
+    const frame = mountKeyFrame(panel, ext.url);
+    const note = panel.querySelector("[data-xfo-key-fallback]");
+    if (note) {
+      note.hidden = true;
+      note.textContent = "";
+    }
+    postToKeysFrame(frame, {
+      source: "xfo-content",
+      userId: selfUserIdFromCookie() || "",
+      theme: (panel && panel.getAttribute("data-theme")) || "system"
+    });
+  }
+
+  async function beginApiSyncFromRail(panel, syncBtn) {
+    if (!panel) return;
+    ignoreRailCloseUntil = Date.now() + 800;
+    let keys = railKeyCache || {};
+    let apiError = railApiSyncError || "";
+    try {
+      keys = await readStoredApiKeys();
+      const extra = await storageGet(["keysVerifiedAt", "apiSyncError"]);
+      railKeyCache = keys;
+      railKeysVerifiedAt = Number(extra && extra.keysVerifiedAt) || 0;
+      apiError = extra && extra.apiSyncError ? String(extra.apiSyncError) : "";
+      railApiSyncError = apiError;
+      userHasApiKeys = !!(
+        XApi &&
+        typeof XApi.hasUserApiKeys === "function" &&
+        XApi.hasUserApiKeys(keys)
+      );
+    } catch (err) {
+      if (extensionContextInvalidated(err) || extensionConnectionDead(err)) {
+        tearDownDeadExtension();
+        return;
+      }
+    }
+    if (extensionDead) return;
+    const show =
+      KeyConfirm && typeof KeyConfirm.showKeyForm === "function"
+        ? KeyConfirm.showKeyForm({ hasKeys: userHasApiKeys, apiSyncError: apiError })
+        : !userHasApiKeys;
+    if (show) {
+      openRailKeyForm(panel);
+      return;
+    }
+    hideKeyConfirm(panel);
+    if (syncBtn) {
+      syncBtn.textContent = "Syncing…";
+      syncBtn.disabled = true;
+    }
+    const errEl = panel.querySelector("[data-xfo-err]");
+    if (errEl) {
+      errEl.hidden = true;
+      errEl.textContent = "";
+    }
+    try {
+      await startSync(true, "api");
+    } finally {
+      ignoreRailCloseUntil = Date.now() + 800;
+      if (isRailPanelOpen(panel)) {
+        refreshRailPanel(panel).catch((err) => {
+          if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+        });
+      }
+    }
+  }
+
+  async function openRailKeyForm(panel) {
+    if (!panel) return;
+    ignoreRailCloseUntil = Date.now() + 800;
+    try {
+      const keys = await readStoredApiKeys();
+      const extra = await storageGet(["keysVerifiedAt", "apiSyncError"]);
+      railKeyCache = keys;
+      railKeysVerifiedAt = Number(extra && extra.keysVerifiedAt) || 0;
+      railApiSyncError = extra && extra.apiSyncError ? String(extra.apiSyncError) : "";
+      userHasApiKeys = !!(
+        XApi &&
+        typeof XApi.hasUserApiKeys === "function" &&
+        XApi.hasUserApiKeys(keys)
+      );
+    } catch (err) {
+      if (extensionContextInvalidated(err) || extensionConnectionDead(err)) {
+        tearDownDeadExtension();
+        return;
+      }
+    }
+    if (extensionDead) return;
+    const ext = keysFrameLocation();
+    const kind = keyFormHostKind(ext);
+    try {
+      if (ext && kind === "frame") showExtensionKeyFrame(panel);
+      repositionOpenRail(panel);
+    } catch (err) {
+      if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
+    }
+  }
+
+
+  function wireRailKeyForm(panel) {
+    if (!panel || panel.dataset.xfoKeyFormWired === "1") return;
+    const frame = panel.querySelector("[data-xfo-key-frame]");
+    if (!frame) return;
+    if (!window.__xfoKeysFrameMessage) {
+      window.__xfoKeysFrameMessage = (event) => {
+        const host = railPanelHost || document.getElementById("xfo-rail-panel");
+        const box = host && host.querySelector("[data-xfo-key-frame]");
+        const ext = keysFrameLocation();
+        // event.source is not box.contentWindow in a Safari content
+        // script. The extension origin cannot be forged by x.com.
+        if (
+          !box ||
+          !ext ||
+          String(event.origin || "").toLowerCase() !== String(ext.origin || "").toLowerCase()
+        ) {
+          return;
+        }
+        const data = event.data || {};
+        if (data.source !== "xfo-keys-frame") return;
+        ignoreRailCloseUntil = Date.now() + 800;
+        if (data.action === "ready") {
+          box.setAttribute("data-xfo-ready", "1");
+          const note = host.querySelector("[data-xfo-key-fallback]");
+          if (note) {
+            note.hidden = true;
+            note.textContent = "";
+          }
+          postToKeysFrame(box, {
+            source: "xfo-content",
+            userId: selfUserIdFromCookie() || "",
+            theme: (host && host.getAttribute("data-theme")) || "system"
+          });
+          return;
+        }
+        if (data.action === "cancel") {
+          hideKeyConfirm(host);
+          return;
+        }
+        if (data.action === "use-free") {
+          startConfirmedSync("session");
+          return;
+        }
+        if (data.action === "use-saved") {
+          confirmSavedThenSync();
+          return;
+        }
+        if (data.action === "save-sync") {
+          readStoredApiKeys()
+            .then((keys) => {
+              railKeyCache = keys;
+              userHasApiKeys = !!(
+                XApi &&
+                typeof XApi.hasUserApiKeys === "function" &&
+                XApi.hasUserApiKeys(keys)
+              );
+              if (!userHasApiKeys) return;
+              startConfirmedSync("api");
+            })
+            .catch(() => {});
+          return;
+        }
+        if (data.action === "height" && box.style) {
+          const height = Math.max(120, Math.min(480, Number(data.height) || 0));
+          if (height) {
+            if (typeof box.style.setProperty === "function") {
+              box.style.setProperty("height", height + "px", "important");
+            } else {
+              box.style.height = height + "px";
+            }
+            repositionOpenRail(host);
+          }
+          return;
+        }
+        if (data.action === "saved") {
+          readStoredApiKeys()
+            .then((keys) => {
+              railKeyCache = keys;
+              userHasApiKeys = !!(
+                XApi &&
+                typeof XApi.hasUserApiKeys === "function" &&
+                XApi.hasUserApiKeys(keys)
+              );
+              if (isRailPanelOpen(host)) return refreshRailPanel(host);
+            })
+            .catch(() => {});
+        }
+      };
+      window.addEventListener("message", window.__xfoKeysFrameMessage);
+    }
+    if (!window.__xfoKeysFrameKeys) {
+      window.__xfoKeysFrameKeys = (event) => {
+        const active = document.activeElement;
+        if (!active || !active.getAttribute || active.getAttribute("data-xfo-key-frame") == null) return;
+        event.stopPropagation();
+      };
+      document.addEventListener("keydown", window.__xfoKeysFrameKeys, true);
+      document.addEventListener("keypress", window.__xfoKeysFrameKeys, true);
+      document.addEventListener("keyup", window.__xfoKeysFrameKeys, true);
+    }
+    panel.dataset.xfoKeyFormWired = "1";
+  }
+
   function ensureRailPanel() {
     let panel = railPanelHost && railPanelHost.id === "xfo-rail-panel" ? railPanelHost : null;
     if (!panel) panel = document.getElementById("xfo-rail-panel");
@@ -6201,7 +6977,10 @@
         '<button type="button" class="xfo-keys-hint-hide" data-xfo-hide-keys-hint>Don\'t show again</button>' +
         "</p>" +
         '<p class="xfo-rail-age" data-xfo-age hidden></p>' +
-        '<button type="button" class="xfo-rail-sync" data-xfo-sync>Sync now</button>' +
+        '<button type="button" class="xfo-rail-sync" data-xfo-sync="free">Sync free</button>' +
+        '<button type="button" class="xfo-rail-sync" data-xfo-sync="api">Sync with API keys</button>' +
+        '<p class="xfo-key-fallback" data-xfo-key-fallback hidden></p>' +
+        railKeyFrameHTML() +
         "</section>" +
         railThemeControlHTML() +
         '<footer class="xfo-rail-legend">' +
@@ -6225,12 +7004,35 @@
       sub.textContent = "Mutual, you follow, follows you, was mutual";
     }
     stripMetricsNodes();
+    if (!panel.querySelector("[data-xfo-key-fallback]")) {
+      const card = panel.querySelector(".xfo-rail-card");
+      const note = document.createElement("p");
+      note.className = "xfo-key-fallback";
+      note.setAttribute("data-xfo-key-fallback", "");
+      note.hidden = true;
+      if (card) card.appendChild(note);
+    }
+    const stalePop = panel.querySelector("[data-xfo-key-pop]");
+    if (stalePop && stalePop.parentNode) stalePop.parentNode.removeChild(stalePop);
+    if (!panel.querySelector("[data-xfo-key-frame]")) {
+      const card = panel.querySelector(".xfo-rail-card");
+      const holder = document.createElement("div");
+      holder.innerHTML = railKeyFrameHTML();
+      const frame = holder.firstElementChild;
+      if (card && frame) card.appendChild(frame);
+    }
+    const staleKeyForm = panel.querySelector("[data-xfo-key-form]");
+    if (staleKeyForm && staleKeyForm.parentNode) staleKeyForm.parentNode.removeChild(staleKeyForm);
+    panel.querySelectorAll(".xfo-key-cost, [data-xfo-key-summary]").forEach((el) => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
     railPanelHost = panel;
     if (document.body && panel.parentElement !== document.body) {
       document.body.appendChild(panel);
     }
     ensureRailThemeChrome(panel);
     ensureSyncStatusExtras(panel);
+    wireRailKeyForm(panel);
     return panel;
   }
 
@@ -6394,14 +7196,33 @@
       });
       return true;
     }
+    if (msg.type === "XFO_TEST_KEYS") {
+      const override = msg.keys && typeof msg.keys === "object" ? msg.keys : null;
+      probeStoredKeys(override).then(
+        (result) => sendResponse(result),
+        (err) =>
+          sendResponse({
+            ok: false,
+            message: err && err.message ? err.message : String(err)
+          })
+      );
+      return true;
+    }
     if (msg.type === "XFO_RUN_SYNC") {
-      const routePromise = currentSyncRoute();
+      const prefer =
+        msg.prefer === "api" || msg.prefer === "session" || msg.prefer === "free"
+          ? msg.prefer
+          : null;
+      const routePromise = (async () => {
+        if (prefer) syncPrefer = prefer;
+        return currentSyncRoute();
+      })();
       routePromise.then((route) => {
         if (!route.ok) {
           sendResponse({ ok: false, error: route.reason });
           return;
         }
-        startSync(true);
+        startSync(true, prefer);
         sendResponse({ ok: true, started: true });
       });
       return true;
@@ -6509,6 +7330,17 @@
         await storageRemove(RETIRED_STORAGE_KEYS);
       } catch (e0) {
         /* ignore */
+      }
+      try {
+        if (XApi && typeof XApi.wipeSavedApiKeys === "function") {
+          await XApi.wipeSavedApiKeys({
+            get: (keys) => storageGet(keys),
+            remove: (keys) => storageRemove(keys),
+            set: (obj) => storageSet(obj)
+          });
+        }
+      } catch (eWipe) {
+        if (extensionContextInvalidated(eWipe) || extensionConnectionDead(eWipe)) throw eWipe;
       }
       await storageSet({
         metricsFailed: [],

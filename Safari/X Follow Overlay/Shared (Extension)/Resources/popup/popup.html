@@ -20,7 +20,10 @@
       <li id="step-sync">
         <div class="step-head"><span class="num">2</span> Run the first Sync</div>
         <p>Leave the x.com tab open. Large accounts take longer because x.com limits how fast a tab can read follows.</p>
-        <button type="button" id="run-sync">Sync now</button>
+        <div class="row">
+          <button type="button" id="run-sync">Sync free</button>
+          <button type="button" id="run-sync-api" class="quiet">Sync with API keys</button>
+        </div>
         <p class="status" id="sync-status"></p>
         <p class="keys-hint" id="keys-hint" hidden>
           Want faster syncs? Add your own X API keys (paid, optional).
@@ -33,20 +36,18 @@
       </li>
       <li id="step-keys">
         <span id="optional-keys"></span>
-        <div class="step-head"><span class="num">3</span> Add API keys <span class="optional">(optional)</span></div>
-        <p>Keys from <a href="https://developer.x.com" target="_blank" rel="noopener">developer.x.com</a> sync large accounts faster. They stay in this browser. The download does not include any keys.</p>
-        <form id="keys-form">
-          <label>API key <input name="apiKey" type="password" autocomplete="off" spellcheck="false"></label>
-          <label>API key secret <input name="apiSecret" type="password" autocomplete="off" spellcheck="false"></label>
-          <label>Access token <input name="accessToken" type="password" autocomplete="off" spellcheck="false"></label>
-          <label>Access token secret <input name="accessSecret" type="password" autocomplete="off" spellcheck="false"></label>
-          <label>Bearer token <span class="optional">if you don’t have the four keys above</span>
-            <input name="bearer" type="password" autocomplete="off" spellcheck="false">
+        <h2 class="key-title">API keys</h2>
+        <p class="key-private">Stays on this Mac, only sent to X.</p>
+        <form id="keys-form" autocomplete="off">
+          <label class="key-field" for="xfo-bearer">X Bearer Token
+            <input id="xfo-bearer" name="bearer" class="xfo-mask" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other" data-lpignore="true">
           </label>
+          <p class="key-hint">From developer.x.com → your app → Keys and tokens</p>
           <div class="row">
-            <button type="submit">Save keys on this device</button>
-            <button type="button" id="clear-keys" class="quiet">Clear keys</button>
+            <button type="submit" id="save-sync">Save and Sync</button>
           </div>
+          <p class="key-links"><button type="button" id="use-free" class="text-link">Use free sync instead</button></p>
+          <p class="key-links"><button type="button" class="quiet" id="cancel-keys">Cancel</button></p>
         </form>
         <p class="status" id="keys-status"></p>
       </li>
@@ -58,6 +59,7 @@
   </main>
   <script src="../shared/sync-state.js"></script>
   <script src="../shared/x-api.js"></script>
+  <script src="../shared/key-confirm.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

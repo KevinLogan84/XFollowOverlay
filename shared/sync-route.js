@@ -37,6 +37,13 @@
     return { csrf: csrf, userId: String(userId) };
   }
 
+  function normalizePrefer(value) {
+    var prefer = clean(value).toLowerCase();
+    if (prefer === "free" || prefer === "session") return "session";
+    if (prefer === "api") return "api";
+    return "";
+  }
+
   function chooseSyncRoute(input) {
     input = input || {};
     var session = sessionFromCookies(input.ct0, input.twid);
@@ -53,6 +60,22 @@
       root.XFOApiKeys && typeof root.XFOApiKeys.hasUserApiKeys === "function"
         ? root.XFOApiKeys.hasUserApiKeys(keys)
         : false;
+    var prefer = normalizePrefer(input.prefer);
+    if (prefer === "session") {
+      return { ok: true, path: "session", userId: session.userId, reason: "" };
+    }
+    if (prefer === "api") {
+      if (!api) {
+        return {
+          ok: false,
+          path: null,
+          userId: session.userId,
+          reason:
+            "Add X API keys to sync with the API. The free sync still works."
+        };
+      }
+      return { ok: true, path: "api", userId: session.userId, reason: "" };
+    }
     if (api) {
       return { ok: true, path: "api", userId: session.userId, reason: "" };
     }
@@ -63,6 +86,7 @@
     NO_SESSION_REASON: NO_SESSION_REASON,
     SESSION_PAGE_GAP_MS: SESSION_PAGE_GAP_MS,
     sessionFromCookies: sessionFromCookies,
+    normalizePrefer: normalizePrefer,
     chooseSyncRoute: chooseSyncRoute
   };
 

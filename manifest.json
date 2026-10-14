@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "X Follow Overlay",
-  "version": "1.2.6",
+  "version": "1.2.11",
   "description": "Relationship dots on x.com: mutual, you follow, follows you, and was mutual.",
   "icons": {
     "16": "icons/icon16.png",
@@ -28,7 +28,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["content/page-hook.js"],
+      "resources": ["content/page-hook.js", "popup/keys-frame.html"],
       "matches": ["https://x.com/*", "https://twitter.com/*"]
     }
   ],
@@ -53,7 +53,9 @@
         "shared/ex-mutual.js",
         "shared/metrics-budget.js",
         "shared/x-api.js",
+        "shared/key-confirm.js",
         "shared/sync-route.js",
+        "shared/incremental-sync.js",
         "content/content.js"
       ],
       "css": ["content/styles.css"],

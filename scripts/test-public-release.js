@@ -77,10 +77,17 @@ assert(/API keys/.test(appHtml) && /optional/i.test(appHtml), "companion app ste
 const popup = read("popup/popup.html");
 assert(popup.includes("Sign in on x.com"), "popup step 1 is sign in");
 assert(popup.includes("Run the first Sync"), "popup step 2 is the first sync");
-assert(popup.includes("Add API keys"), "popup step 3 is optional keys");
+assert(popup.includes("API keys"), "popup key step is titled API keys");
+assert(popup.includes("Stays on this Mac, only sent to X."), "popup key step uses the short line");
 
 const readme = read("README.md");
-assert(readme.includes("docs/screenshot-placeholder.svg"), "README has a screenshot placeholder");
+assert(readme.includes("docs/people-icon-toolbar.png"), "README shows the people-icon toolbar button");
+assert(readme.includes("docs/on-page-panel.png"), "README shows the on-page panel");
+assert(readme.includes("docs/key-popup-156.png"), "README shows the bearer form");
+assert(
+  readme.includes("## Your API keys stay private on your Mac and are sent only to X (api.x.com)\n"),
+  "README privacy heading is exact and has no trailing period"
+);
 assert(readme.includes("/releases/latest"), "README links to Releases/latest");
 assert(readme.includes("Safari → Settings → Extensions"), "README covers enabling the Safari extension");
 assert(/allow \*\*x\.com\*\*/i.test(readme), "README tells Safari users to allow x.com");
@@ -92,6 +99,8 @@ assert(readme.includes("## Uninstall"), "README has uninstall steps");
 assert(readme.includes("## Feedback & support"), "README has a Feedback & support section");
 assert(!fs.existsSync(path.join(root, "AGENTS.md")), "AGENTS.md is not in the repo root");
 assert(!fs.existsSync(path.join(root, ".cursor", "rules", "reinstall-macos.mdc")), ".cursor reinstall rule is not in the public tree");
+assert(fs.existsSync(path.join(root, "docs", "private", "AGENTS.md")), "private maintainer notes were kept");
+assert(fs.existsSync(path.join(root, "docs", "private", "reinstall-macos.mdc")), "private reinstall notes were kept");
 assert(read(".gitattributes").includes("docs/private"), "docs/private is excluded from release archives");
 assert(fs.existsSync(path.join(root, "scripts", "install-macos.sh")), "Mac install script still exists");
 
@@ -166,6 +175,13 @@ assert(!appDelegate.includes("enableAutomaticTermination"), "nothing re-enables 
 assert(!/show\(|evaluateJavaScript|WKWebView/.test(appDelegate), "staying alive does not run page JS");
 assert(appDelegate.includes("contentViewController is ViewController"), "companion styles its own setup window");
 assert(appDelegate.includes("makeKeyAndOrderFront"), "setup window is ordered front");
+assert(appDelegate.includes("fittingSize"), "setup window height comes from the content fitting size");
+assert(appDelegate.includes("visibleFrame"), "fitted height is clamped to the screen visible frame");
+assert(/private let setupContentWidth: CGFloat = 420/.test(appDelegate), "compact setup width stays 420");
+assert(/contentMaxSize = NSSize\(width: width/.test(appDelegate), "setup window cannot grow wider than the compact width");
+assert(/let width = setupContentWidth/.test(appDelegate), "fitting uses the compact width, not a restored frame");
+assert(!/contentRect\.width > 1 \? contentRect\.width/.test(appDelegate), "a wide frame is not kept");
+assert(!/NSSize\(width: 420, height: 640\)/.test(appDelegate), "setup window is not locked to 420×640");
 assert(!/Timer|asyncAfter|exit\(/.test(appDelegate), "companion app has no delayed exit");
 assert(!appDelegate.includes("NSApp.terminate"), "the app delegate does not quit on its own");
 const macInfo = read("Safari/X Follow Overlay/macOS (App)/Info.plist");
@@ -188,6 +204,9 @@ assert(viewController.includes("webViewDidClose"), "window.close from the page i
 assert(viewController.includes("window.close=function(){};"), "window.close is neutralized before page scripts");
 assert(viewController.includes("typeof show==='function'"), "a missing show() does not throw into the app");
 assert(viewController.includes("holdOpenForSetupWindow"), "a failed page re-arms the keep-alive");
+assert(viewController.includes("querySelector('.shell')"), "setup page measures the shell that holds the steps");
+assert(viewController.includes("getBoundingClientRect().height"), "window height follows the laid-out page");
+assert(viewController.includes("contentFittingHeight"), "laid-out height is stored for the window fit");
 const terminates = viewController.match(/NSApp\.terminate/g) || [];
 assert(terminates.length === 1, "the app quits only when the user opens Safari settings");
 const pbx = read("Safari/X Follow Overlay/X Follow Overlay.xcodeproj/project.pbxproj");

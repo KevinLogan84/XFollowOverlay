@@ -498,6 +498,50 @@ function createDocument() {
       width: 50,
       height: 50
     });
+    let valueStore = "";
+    Object.defineProperty(el, "value", {
+      get() {
+        return valueStore;
+      },
+      set(value) {
+        valueStore = value == null ? "" : String(value);
+      }
+    });
+    Object.defineProperty(el, "disabled", {
+      get() {
+        return this.hasAttribute("disabled");
+      },
+      set(value) {
+        if (value) this.setAttribute("disabled", "");
+        else this.removeAttribute("disabled");
+      }
+    });
+    Object.defineProperty(el, "open", {
+      get() {
+        return this.hasAttribute("open");
+      },
+      set(value) {
+        if (value) this.setAttribute("open", "");
+        else this.removeAttribute("open");
+      }
+    });
+    el.focus = () => {};
+    el.attachShadow = (init) => {
+      if (el._shadow) throw new Error("attachShadow failed");
+      const mode = init && init.mode === "closed" ? "closed" : "open";
+      const root = createElement("div");
+      root.nodeType = 11;
+      root.host = el;
+      el._shadow = root;
+      el._shadowMode = mode;
+      return root;
+    };
+    Object.defineProperty(el, "shadowRoot", {
+      configurable: true,
+      get() {
+        return el._shadowMode === "open" ? el._shadow || null : null;
+      }
+    });
     el.addEventListener = (type, fn) => {
       const map = listenerMap(el);
       if (!map[type]) map[type] = [];
@@ -729,6 +773,7 @@ function bootPage(options) {
   const storageListeners = [];
   const windowListeners = {};
   const fetches = [];
+  const runtimeListeners = [];
 
   function storageGet(keys) {
     if (options.storageGet) return options.storageGet(keys, pageStore);
@@ -760,6 +805,13 @@ function bootPage(options) {
     articleFor(doc, "eve");
   }
 
+  const pageOrigin = options.origin || "https://x.com";
+  let pageHost = "x.com";
+  try {
+    pageHost = new URL(pageOrigin).host;
+  } catch (e) {
+    pageHost = "x.com";
+  }
   const ctx = {
     console: console,
     setTimeout(fn, ms, ...args) {
@@ -826,12 +878,12 @@ function bootPage(options) {
     AbortController: AbortController,
     document: doc,
     location: {
-      origin: "https://x.com",
+      origin: pageOrigin,
       protocol: "https:",
-      host: "x.com",
-      hostname: "x.com",
+      host: pageHost,
+      hostname: pageHost,
       pathname: "/home",
-      href: "https://x.com/home",
+      href: pageOrigin + "/home",
       search: "",
       hash: ""
     },
@@ -868,9 +920,35 @@ function bootPage(options) {
       },
       runtime: {
         id: "xfo-test",
-        getURL: (p) => "chrome-extension://test/" + p,
-        sendMessage: () => Promise.resolve(),
-        onMessage: { addListener() {}, removeListener() {} }
+        getURL: options.getURL || ((p) => "chrome-extension://test/" + p),
+        sendMessage(msg, cb) {
+          let result;
+          try {
+            result = options.runtimeSendMessage
+              ? options.runtimeSendMessage(msg, runtimeListeners.slice())
+              : undefined;
+          } catch (err) {
+            errors.push(err);
+            result = Promise.reject(err);
+          }
+          if (result == null || typeof result.then !== "function") result = Promise.resolve(result);
+          if (typeof cb === "function") {
+            result.then(
+              (res) => cb(res),
+              () => cb(undefined)
+            );
+          }
+          return result;
+        },
+        onMessage: {
+          addListener(fn) {
+            runtimeListeners.push(fn);
+          },
+          removeListener(fn) {
+            const index = runtimeListeners.indexOf(fn);
+            if (index >= 0) runtimeListeners.splice(index, 1);
+          }
+        }
       }
     },
     addEventListener(type, fn) {
@@ -932,7 +1010,18 @@ function bootPage(options) {
     });
   }
 
-  return { doc, ctx, adaHost, errors, fetches, finish, fireWindow, fireIntervals, fireStorage };
+  return {
+    doc,
+    ctx,
+    adaHost,
+    errors,
+    fetches,
+    runtimeListeners,
+    finish,
+    fireWindow,
+    fireIntervals,
+    fireStorage
+  };
 }
 
 function panelIsOpen(doc) {
@@ -969,6 +1058,7 @@ function fail(err) {
   process.exitCode = 1;
 }
 
+function runInertDotTests() {
 const populated = bootPage({
   store: {
     following: ["ada", "ben", "dee"],
@@ -1122,7 +1212,7 @@ setTimeout(() => {
         const errEl = emptyPage.doc.querySelector("[data-xfo-err]");
         assert(errEl, "empty follow data has an error slot");
         assert(
-          errEl.textContent === "No follow data yet — tap Sync now.",
+          errEl.textContent === "No follow data yet — tap Sync free.",
           "a readable empty store still shows the empty-data banner"
         );
       } catch (err) {
@@ -1169,7 +1259,7 @@ setTimeout(() => {
       const lastEl = panel.querySelector("[data-xfo-last]");
       assert(errEl, "panel keeps its error slot when storage cannot be read");
       assert(
-        errEl.textContent !== "No follow data yet — tap Sync now.",
+        errEl.textContent !== "No follow data yet — tap Sync free.",
         "unreadable storage does not show the empty-data banner"
       );
       assert(errEl.hidden === true, "the empty-data banner stays hidden when storage cannot be read");
@@ -1196,3 +1286,8 @@ setTimeout(() => {
     }, 80);
   }, 80);
 }, 800);
+}
+
+if (require.main === module) runInertDotTests();
+
+module.exports = { bootPage, createDocument, panelIsOpen };

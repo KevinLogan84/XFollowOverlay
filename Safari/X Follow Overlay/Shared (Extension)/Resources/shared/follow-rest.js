@@ -959,7 +959,19 @@
       if (tokenPage) params.pagination_token = tokenPage;
       var res = await client.requestV2(path, params, token);
       if (!res || !res.ok) {
-        throw httpError((res && res.status) || 0, (res && res.text) || "v2 failed");
+        var body = res && (res.json != null ? res.json : res.text);
+        var detail = "v2 failed";
+        if (
+          root.XFOApiKeys &&
+          typeof root.XFOApiKeys.messageFromApiBody === "function"
+        ) {
+          detail = root.XFOApiKeys.messageFromApiBody(body) || detail;
+        } else if (res && res.text) {
+          detail = String(res.text).slice(0, 160);
+        }
+        var err = httpError((res && res.status) || 0, detail);
+        err.apiBody = body;
+        throw err;
       }
       var parsed = v2Handles(res.json);
       for (var i = 0; i < parsed.users.length; i++) users.push(parsed.users[i]);

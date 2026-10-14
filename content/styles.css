@@ -223,6 +223,8 @@
   opacity: 1 !important;
   transform: none !important;
   pointer-events: auto !important;
+  max-height: calc(100vh - 16px) !important;
+  overflow: auto !important;
 }
 
 .xfo-rail-head {
@@ -519,4 +521,113 @@
   font-size: 11px !important;
   font-weight: 600 !important;
   text-decoration: none !important;
+}
+
+.xfo-key-frame {
+  display: block !important;
+  width: 100% !important;
+  height: 200px !important;
+  margin: 8px 0 0 !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: var(--bg) !important;
+  overflow: hidden !important;
+  color-scheme: light dark;
+}
+
+.xfo-key-frame[hidden] {
+  display: none !important;
+}
+
+.xfo-key-fallback {
+  margin: 8px 0 0 !important;
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  line-height: 1.35 !important;
+  color: var(--text) !important;
+  text-align: left !important;
+}
+
+.xfo-key-fallback[hidden] {
+  display: none !important;
+}
+
+.xfo-key-cost,
+.xfo-key-form,
+.xfo-key-status,
+.xfo-key-saved,
+.xfo-key-summary {
+  margin: 8px 0 0 !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  color: var(--muted) !important;
+  text-align: center !important;
+}
+
+.xfo-key-form {
+  text-align: left !important;
+}
+
+.xfo-key-form[hidden],
+.xfo-key-saved[hidden],
+.xfo-key-summary[hidden] {
+  display: none !important;
+}
+
+.xfo-key-form label {
+  display: block !important;
+  margin: 8px 0 0 !important;
+  color: var(--muted) !important;
+  font-size: 12px !important;
+}
+
+.xfo-key-form input {
+  display: block !important;
+  width: 100% !important;
+  margin: 3px 0 0 !important;
+  padding: 6px 8px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--line) !important;
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font: inherit !important;
+  box-sizing: border-box !important;
+}
+
+.xfo-key-form input[hidden] {
+  display: none !important;
+}
+
+.xfo-key-saved {
+  margin: 3px 0 0 !important;
+  color: var(--text) !important;
+  font-weight: 650 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+}
+
+.xfo-key-advanced {
+  margin-top: 8px !important;
+}
+
+.xfo-key-advanced summary {
+  cursor: pointer !important;
+  font-weight: 650 !important;
+  color: var(--text) !important;
+}
+
+.xfo-key-actions {
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 8px !important;
+}
+
+.xfo-key-actions .xfo-rail-sync {
+  flex: 1 1 auto !important;
+  margin-top: 0 !important;
+}
+
+.xfo-key-status {
+  min-height: 1em !important;
+  text-align: left !important;
 }

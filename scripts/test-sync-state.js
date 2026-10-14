@@ -362,7 +362,7 @@ const t0 = 1_000_000;
     "on-load orphan cleanup still uses the short STUCK_MS window"
   );
   assert(
-    content.includes("Sync looks stuck — tap Sync now to retry."),
+    content.includes("Sync looks stuck — tap Retry sync."),
     "stuck rail copy is still present for dead syncs"
   );
   const sw = fs.readFileSync(

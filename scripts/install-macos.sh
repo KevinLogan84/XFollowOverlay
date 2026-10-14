@@ -28,8 +28,8 @@ xcodebuild \
   -destination "platform=macOS" \
   DEVELOPMENT_TEAM="$TEAM" \
   CODE_SIGN_STYLE=Automatic \
-  MARKETING_VERSION=1.2.6 \
-  CURRENT_PROJECT_VERSION=148 \
+  MARKETING_VERSION=1.2.11 \
+  CURRENT_PROJECT_VERSION=156 \
   build
 
 BUILT="$DERIVED/Build/Products/Release/$APP_NAME"
@@ -109,7 +109,7 @@ One-time Safari setup:
   1. Safari -> Settings -> Extensions
   2. Enable "X Follow Overlay"
   3. Allow x.com when asked
-  4. Open x.com -> people icon under Post -> Sync now to refresh
+  4. Open x.com -> people icon under Post -> Sync free to refresh
 
 After that you do not need Xcode. To update later:
   ./scripts/install-macos.sh

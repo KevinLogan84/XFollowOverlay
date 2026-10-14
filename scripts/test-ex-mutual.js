@@ -296,9 +296,9 @@ const lostNext = {
     js.indexOf("shared/ex-mutual.js") !== -1 && js.indexOf("shared/ex-mutual.js") < js.indexOf("content/content.js"),
     "ex-mutual.js loads before content.js"
   );
-  assert(manifest.version === "1.2.6", "manifest is 1.2.6");
-  assert(/MARKETING_VERSION=1\.2\.6/.test(install), "install marketing version is 1.2.6");
-  assert(/CURRENT_PROJECT_VERSION=148/.test(install), "install project version is 148");
+  assert(manifest.version === "1.2.11", "manifest is 1.2.11");
+  assert(/MARKETING_VERSION=1\.2\.11/.test(install), "install marketing version is 1.2.11");
+  assert(/CURRENT_PROJECT_VERSION=156/.test(install), "install project version is 156");
 }
 
 console.log("All ex-mutual tests passed.");

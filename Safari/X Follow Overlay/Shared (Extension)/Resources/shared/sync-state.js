@@ -25,10 +25,10 @@
   // A page request with no accounts and no rate-limit wait. Retry once, then fail.
   var WATCHDOG_SILENCE_MS = 2 * 60 * 1000;
   var WATCHDOG_PAGE_RETRIES = 1;
-  var TIMEOUT_ERROR = "Sync timed out. Keep x.com open and tap Sync now to retry.";
-  var RATE_LIMIT_ERROR = "X is rate-limiting. Wait a minute and tap Sync now.";
+  var TIMEOUT_ERROR = "Sync timed out. Keep x.com open and tap Retry sync.";
+  var RATE_LIMIT_ERROR = "X is rate-limiting. Wait a minute and tap Sync free.";
   var STALL_ERROR =
-    "Sync stalled on this page. Your place in the list is saved. Leave x.com open and tap Sync now to resume.";
+    "Sync stalled on this page. Your place in the list is saved. Leave x.com open and tap Sync free to resume.";
   var KEYS_HINT_DISMISS_KEY = "hideRateLimitKeysHint";
   var KEYS_HINT_TEXT =
     "Want faster syncs? Add your own X API keys (paid, optional).";
@@ -252,7 +252,8 @@
     "syncBackoffUntil",
     "syncProgressCount",
     "syncProgressSide",
-    "hideRateLimitKeysHint"
+    "hideRateLimitKeysHint",
+    "apiSyncError"
   ];
 
   function followSnapshot(data, fallback) {
@@ -279,7 +280,8 @@
       syncBackoffUntil: numberOrNull(pick("syncBackoffUntil")),
       syncProgressCount: numberOrNull(pick("syncProgressCount")),
       syncProgressSide: pick("syncProgressSide") || "",
-      hideRateLimitKeysHint: pick("hideRateLimitKeysHint") === true
+      hideRateLimitKeysHint: pick("hideRateLimitKeysHint") === true,
+      apiSyncError: pick("apiSyncError") || null
     };
   }
 

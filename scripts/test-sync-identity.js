@@ -417,7 +417,7 @@ function docFrom(map) {
   const manifest = JSON.parse(
     fs.readFileSync(path.join(__dirname, "../manifest.json"), "utf8")
   );
-  assert(content.includes('const XFO_VERSION = "1.2.6"'), "content version is 1.2.6");
+  assert(content.includes('const XFO_VERSION = "1.2.11"'), "content version is 1.2.11");
   assert(content.includes("collectFollowGraph"), "runSync uses collectFollowGraph");
   assert(content.includes("currentSyncRoute"), "runSync refuses to start without a session route");
   assert(content.includes("pageGraphql"), "content talks to the page hook");
@@ -429,7 +429,7 @@ function docFrom(map) {
   assert(hook.includes('d.type === "XFO_GQL"'), "page-hook accepts XFO_GQL commands");
   assert(hook.includes('d.type === "XFO_REST"'), "page-hook accepts XFO_REST commands");
   assert(hook.includes("x-client-transaction-id"), "page-hook documents the TID path");
-  assert(manifest.version === "1.2.6", "manifest version is 1.2.6");
+  assert(manifest.version === "1.2.11", "manifest version is 1.2.11");
   assert(
     !/if \(opts\.exhausted\) return membership > 0/.test(content),
     "content fallback keeps a sanity bound on exhausted REST lists"
@@ -548,8 +548,8 @@ function docFrom(map) {
   assert(content.includes("clearSyncProgress"), "ok sync clears persisted progress");
   assert(content.includes("syncProgressLabel: \"\""), "ok save writes an empty progress label");
   assert(
-    content.includes("API list incomplete — using your x.com session"),
-    "an incomplete API list falls through to the signed-in session"
+    content.includes("X API list was incomplete."),
+    "an incomplete API list is reported instead of falling through to the session"
   );
   assert(
     content.includes("Syncing from your x.com session"),

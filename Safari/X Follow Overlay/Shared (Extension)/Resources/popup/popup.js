@@ -1,6 +1,11 @@
 (function () {
   var api = typeof browser !== "undefined" ? browser : chrome;
   var Sync = globalThis.XFOSyncState;
+  var XApi = globalThis.XFOApiKeys;
+  var keyWipeReady =
+    XApi && XApi.wipeSavedApiKeys
+      ? XApi.wipeSavedApiKeys(api.storage.local).catch(function () {})
+      : Promise.resolve();
   var KEY_FIELDS = ["apiKey", "apiSecret", "accessToken", "accessSecret", "bearer"];
 
   var stepSignIn = document.getElementById("step-sign-in");
@@ -11,25 +16,52 @@
   var keysHint = document.getElementById("keys-hint");
   var keysStatus = document.getElementById("keys-status");
   var runSyncBtn = document.getElementById("run-sync");
+  var runSyncApiBtn = document.getElementById("run-sync-api");
   var form = document.getElementById("keys-form");
   var signedIn = false;
   var hasStoredSync = false;
   var syncSnap = {};
   var keyed = false;
   var syncKick = false;
+  var storedKeys = {};
+  var keyProbeMessage = "";
 
   function keysFromForm() {
     var data = {};
     KEY_FIELDS.forEach(function (name) {
-      data[name] = (form.elements[name].value || "").trim();
+      var input = form.elements[name];
+      if (input) data[name] = (input.value || "").trim();
+      else data[name] = storedKeys && storedKeys[name] ? String(storedKeys[name]) : "";
     });
     return {
-      apiKey: data.apiKey,
-      apiSecret: data.apiSecret,
-      accessToken: data.accessToken,
-      accessSecret: data.accessSecret,
-      bearer: data.bearer
+      apiKey: data.apiKey || "",
+      apiSecret: data.apiSecret || "",
+      accessToken: data.accessToken || "",
+      accessSecret: data.accessSecret || "",
+      bearer: data.bearer || ""
     };
+  }
+
+  function paintSavedKeys(keys) {
+    KEY_FIELDS.forEach(function (name) {
+      var input = form.elements[name];
+      if (!input) return;
+      input.hidden = false;
+      if (!input.value && keys && keys[name]) input.value = keys[name];
+    });
+    labelSaveButton();
+  }
+
+  function labelSaveButton() {
+    var saveButton = document.getElementById("save-sync");
+    if (!saveButton) return;
+    var Key = globalThis.XFOKeyConfirm;
+    var keys = keysFromForm();
+    var same = !!(
+      hasKeys(storedKeys) &&
+      (!Key || !Key.sameKeyMaterial || Key.sameKeyMaterial(keys, storedKeys))
+    );
+    saveButton.textContent = same ? "Sync" : "Save and Sync";
   }
 
   function hasKeys(keys) {
@@ -81,7 +113,9 @@
       "syncBackoffUntil",
       "syncProgressCount",
       "syncProgressSide",
-      "hideRateLimitKeysHint"
+      "hideRateLimitKeysHint",
+      "keysVerifiedAt",
+      "apiSyncError"
     ]);
     return {
       keys: {
@@ -131,8 +165,15 @@
       runSyncBtn.textContent = "Syncing…";
       runSyncBtn.disabled = true;
       runSyncBtn.classList.add("is-syncing");
+      if (runSyncApiBtn) {
+        runSyncApiBtn.textContent = "Syncing…";
+        runSyncApiBtn.disabled = true;
+        runSyncApiBtn.classList.add("is-syncing");
+      }
     } else {
+      var stuck = !!(Sync && Sync.isStuck && Sync.isStuck(ui));
       runSyncBtn.classList.remove("is-syncing");
+      if (runSyncApiBtn) runSyncApiBtn.classList.remove("is-syncing");
       if (syncAge) syncAge.textContent = "";
       if (!signedIn) {
         syncStatus.textContent = "Sign in on x.com in this browser, then come back.";
@@ -143,9 +184,12 @@
       } else {
         syncStatus.textContent = "Last sync is saved on this device.";
       }
-      var retry = Sync && Sync.isStuck(ui);
-      runSyncBtn.textContent = retry ? "Retry sync" : "Sync now";
+      runSyncBtn.textContent = stuck ? "Retry sync" : "Sync free";
       runSyncBtn.disabled = !signedIn;
+      if (runSyncApiBtn) {
+        runSyncApiBtn.textContent = stuck ? "Retry sync" : "Sync with API keys";
+        runSyncApiBtn.disabled = !signedIn;
+      }
     }
     var showHint =
       Sync &&
@@ -159,16 +203,19 @@
   }
 
   async function refresh() {
+    await keyWipeReady;
     var session = await findSession();
     var stored = await storedState();
     signedIn = session.signedIn;
     hasStoredSync = !!stored.lastSyncAt;
+    storedKeys = stored.keys;
     keyed = hasKeys(stored.keys);
     syncSnap = stored.sync || {};
     mark(stepSignIn, signedIn);
     mark(stepSync, hasStoredSync);
     mark(stepKeys, keyed);
-    if (keyed) keysStatus.textContent = "Keys are saved on this device only.";
+    paintSavedKeys(stored.keys);
+    if (keyProbeMessage) keysStatus.textContent = keyProbeMessage;
     runSyncBtn.dataset.tabId = session.tabId ? String(session.tabId) : "";
     renderSyncFace();
   }
@@ -188,7 +235,7 @@
     await api.storage.local.set({ hideRateLimitKeysHint: true });
   });
 
-  runSyncBtn.addEventListener("click", async function () {
+  async function startSyncOnTab(prefer) {
     var tabId = Number(runSyncBtn.dataset.tabId);
     if (!tabId) {
       syncStatus.textContent = "Open x.com and sign in first.";
@@ -198,59 +245,152 @@
     renderSyncFace();
     syncStatus.textContent = "Starting Sync on your x.com tab…";
     try {
-      await api.tabs.sendMessage(tabId, { type: "XFO_RUN_SYNC" });
+      await api.tabs.sendMessage(tabId, { type: "XFO_RUN_SYNC", prefer: prefer });
     } catch (e) {
       syncKick = false;
       syncStatus.textContent = "Couldn’t reach x.com. Reload that tab and try again.";
-      runSyncBtn.classList.remove("is-syncing");
-      runSyncBtn.disabled = !signedIn;
-      runSyncBtn.textContent = "Sync now";
+      renderSyncFace();
       return;
     }
     syncKick = false;
     refresh();
+  }
+
+  runSyncBtn.addEventListener("click", function () {
+    startSyncOnTab("session");
   });
 
-  form.addEventListener("submit", async function (event) {
-    event.preventDefault();
+  if (runSyncApiBtn) {
+    runSyncApiBtn.addEventListener("click", function () {
+      var anchor = document.getElementById("optional-keys");
+      if (anchor && anchor.scrollIntoView) anchor.scrollIntoView();
+      var bearer = form.elements.bearer;
+      if (!keyed) {
+        if (bearer && bearer.focus) bearer.focus();
+        return;
+      }
+      var saveButton = document.getElementById("save-sync");
+      if (saveButton && saveButton.focus) saveButton.focus();
+    });
+  }
+
+  var useFreeBtn = document.getElementById("use-free");
+  if (useFreeBtn) {
+    useFreeBtn.addEventListener("click", function () {
+      startSyncOnTab("session");
+    });
+  }
+
+  async function probeKeysOnTab(keys) {
+    var tabId = Number(runSyncBtn.dataset.tabId);
+    if (!tabId) {
+      return { ok: false, message: "Open x.com and sign in first." };
+    }
+    try {
+      return await api.tabs.sendMessage(tabId, { type: "XFO_TEST_KEYS", keys: keys || null });
+    } catch (e) {
+      return { ok: false, message: "Couldn’t reach x.com. Reload that tab and try again." };
+    }
+  }
+
+  function draftKeys() {
     var keys = keysFromForm();
-    if (!hasKeys(keys) && (keys.apiKey || keys.apiSecret || keys.accessToken || keys.accessSecret || keys.bearer)) {
-      keysStatus.textContent = "Those keys look incomplete. Paste all four, or only a bearer token.";
+    if (
+      !hasKeys(keys) &&
+      (keys.apiKey || keys.apiSecret || keys.accessToken || keys.accessSecret || keys.bearer)
+    ) {
+      keysStatus.textContent = "Paste an API key.";
+      return null;
+    }
+    if (!hasKeys(keys)) {
+      keysStatus.textContent = "Paste an API key.";
+      return null;
+    }
+    return keys;
+  }
+
+  async function saveKeys() {
+    await keyWipeReady;
+    var keys = draftKeys();
+    if (!keys) return;
+    var Key = globalThis.XFOKeyConfirm;
+    var same = !Key || !Key.sameKeyMaterial || Key.sameKeyMaterial(keys, storedKeys);
+    var verified = !!(
+      same &&
+      hasKeys(storedKeys) &&
+      Key &&
+      Key.keysAreVerified &&
+      Key.keysAreVerified({
+        keysVerifiedAt: syncSnap.keysVerifiedAt,
+        apiSyncError: syncSnap.apiSyncError
+      })
+    );
+    if (verified) {
+      keyProbeMessage = "";
+      if (keysStatus) keysStatus.textContent = "";
+      await startSyncOnTab("api");
       return;
     }
+    var result = await probeKeysOnTab(keys);
+    if (!result || !result.ok) {
+      var message = (result && result.message) || "X rejected that key.";
+      if (/^key check already running\b/i.test(message)) message = "";
+      keyProbeMessage = message;
+      if (keysStatus) keysStatus.textContent = keyProbeMessage;
+      return noteVerified(keys, result);
+    }
+    keyProbeMessage = "";
+    if (keysStatus) keysStatus.textContent = "";
+    var at = Date.now();
     await api.storage.local.set({
       xApiKey: keys.apiKey,
       xApiSecret: keys.apiSecret,
       xAccessToken: keys.accessToken,
       xAccessSecret: keys.accessSecret,
-      xApiBearer: keys.bearer
+      xApiBearer: keys.bearer,
+      keysVerifiedAt: at,
+      apiSyncError: null
     });
-    KEY_FIELDS.forEach(function (name) {
-      form.elements[name].value = "";
-    });
-    keysStatus.textContent = keys.apiKey || keys.bearer
-      ? "Saved on this device. They are not in the download."
-      : "Nothing new to save.";
+    storedKeys = keys;
+    keyed = true;
+    syncSnap.keysVerifiedAt = at;
+    syncSnap.apiSyncError = null;
+    paintSavedKeys(keys);
+    await startSyncOnTab("api");
     refresh();
+  }
+
+  async function noteVerified(keys, result) {
+    var Key = globalThis.XFOKeyConfirm;
+    var same = !Key || !Key.sameKeyMaterial || Key.sameKeyMaterial(keys, storedKeys);
+    if (!same) return;
+    if (result && result.ok) {
+      var at = Date.now();
+      syncSnap.keysVerifiedAt = at;
+      syncSnap.apiSyncError = null;
+      await api.storage.local.set({ keysVerifiedAt: at, apiSyncError: null });
+      return;
+    }
+    if (Key && Key.probeRevokesVerification && Key.probeRevokesVerification(result)) {
+      syncSnap.keysVerifiedAt = null;
+      await api.storage.local.set({ keysVerifiedAt: null });
+    }
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    saveKeys();
+  });
+  form.addEventListener("input", function () {
+    labelSaveButton();
   });
 
-  document.getElementById("clear-keys").addEventListener("click", async function () {
-    await api.storage.local.remove([
-      "xApiKey",
-      "xApiSecret",
-      "xAccessToken",
-      "xAccessSecret",
-      "xApiBearer",
-      "xUserToken",
-      "xBearerToken",
-      "xApiUserToken"
-    ]);
-    KEY_FIELDS.forEach(function (name) {
-      form.elements[name].value = "";
+  var cancelKeys = document.getElementById("cancel-keys");
+  if (cancelKeys) {
+    cancelKeys.addEventListener("click", function () {
+      window.close();
     });
-    keysStatus.textContent = "Keys removed from this device. Sync will use your x.com tab.";
-    refresh();
-  });
+  }
 
   if (api.storage && api.storage.onChanged) {
     api.storage.onChanged.addListener(function (changes, area) {

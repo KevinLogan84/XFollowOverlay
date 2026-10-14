@@ -9,7 +9,9 @@ Free dots on profile pictures at x.com.
 
 No account with us, no payment, and no API key required. Sync uses the x.com tab you are already signed into.
 
-![X Follow Overlay on x.com — screenshot placeholder](docs/screenshot-placeholder.svg)
+![People icon in the X toolbar, under Post. This button opens the panel.](docs/people-icon-toolbar.png)
+
+![On-page panel: Following and Followers counts, Sync free, and Sync with API keys.](docs/on-page-panel.png)
 
 ## Download
 
@@ -42,7 +44,7 @@ You can also open the extension’s toolbar button. It walks through the same th
 
 1. **Sign in on x.com** in this browser.
 2. **Run Sync.** The extension reads follows from that signed-in tab. It does not need a key.
-3. **Add API keys** only if you want a faster sync. This step is optional.
+3. Add **API keys** only if you want a faster sync. This step is optional.
 
 Big accounts sync slower. x.com limits how fast any signed-in tab can read follow lists. Leave the tab open. When X asks the extension to slow down, it waits and then continues.
 
@@ -54,9 +56,22 @@ Keys are optional. They can sync a large account faster than the free tab.
 1. Create an app at [developer.x.com](https://developer.x.com).
 2. Copy your API key, API key secret, access token, and access token secret. A bearer token works too if that is what the portal shows.
 3. Open the X Follow Overlay toolbar button.
-4. Paste the keys under **Add API keys (optional)** and save.
+4. Paste the key and choose **Save and Sync**.
 
-Keys are stored only in this browser’s extension storage. They are not in the download, and they are not sent anywhere except to X.
+The key stays on this Mac and is only sent to X. It is not in the download.
+
+## Your API keys stay private on your Mac and are sent only to X (api.x.com)
+
+Free sync works without a key. It is slower because X limits how fast a signed-in tab can read follow lists. API keys are optional, and X charges for them.
+
+A key you paste is stored only in the extension’s local storage on this Mac:
+
+- Bearer token: `xApiBearer`
+- API key, API key secret, access token, and access token secret, if you paste those too: `xApiKey`, `xApiSecret`, `xAccessToken`, `xAccessSecret`
+
+Nothing in that list is written into this repository, into logs, or into telemetry. The extension sends those values only to `api.x.com` (`https://api.x.com/2/…`), in the Authorization header. Any other host is refused.
+
+![Build 156 bearer form: masked X Bearer Token field, Save and Sync, and Use free sync instead.](docs/key-popup-156.png)
 
 ## Troubleshooting
 

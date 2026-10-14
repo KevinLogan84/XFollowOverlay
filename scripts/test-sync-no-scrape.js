@@ -69,8 +69,14 @@ assert(!content.includes("syncRequestId"), "content no longer starts sync from s
 assert(/runtime\.onMessage/.test(content), "content answers the onboarding popup");
 assert(
   JSON.stringify((manifest.web_accessible_resources || [])[0].resources) ===
-    JSON.stringify(["content/page-hook.js"]),
-  "only page-hook.js is web-accessible (shared/* is loaded as content scripts)"
+    JSON.stringify(["content/page-hook.js", "popup/keys-frame.html"]),
+  "web-accessible files are the page hook and the extension key form"
+);
+assert(
+  !(manifest.web_accessible_resources || [])[0].resources.some((item) =>
+    String(item).indexOf("shared/") === 0
+  ),
+  "shared/* stays a content script, not a web-accessible file"
 );
 assert(!/postMessage\([^;]*?,\s*"\*"\s*\)/.test(content), "content has no '*' postMessage target");
 
@@ -80,17 +86,17 @@ assert(
   "rail Sync now uses --primary"
 );
 
-assert(manifest.version === "1.2.6", "manifest is 1.2.6");
-assert(/MARKETING_VERSION=1\.2\.6/.test(install), "install marketing version is 1.2.6");
-assert(/CURRENT_PROJECT_VERSION=148/.test(install), "install project version is 148");
+assert(manifest.version === "1.2.11", "manifest is 1.2.11");
+assert(/MARKETING_VERSION=1\.2\.11/.test(install), "install marketing version is 1.2.11");
+assert(/CURRENT_PROJECT_VERSION=156/.test(install), "install project version is 156");
 const releaseSh = read("scripts/release-macos.sh");
-assert(/VERSION="1\.2\.6"/.test(releaseSh), "release marketing version is 1.2.6");
-assert(/BUILD="148"/.test(releaseSh), "release build is 148");
+assert(/VERSION="1\.2\.11"/.test(releaseSh), "release marketing version is 1.2.11");
+assert(/BUILD="156"/.test(releaseSh), "release build is 156");
 const pbx = read("Safari/X Follow Overlay/X Follow Overlay.xcodeproj/project.pbxproj");
-assert(/MARKETING_VERSION = 1\.2\.6;/.test(pbx), "Xcode marketing version is 1.2.6");
-assert(!/MARKETING_VERSION = 1\.2\.5;/.test(pbx), "Xcode marketing version is not 1.2.5");
-assert(/CURRENT_PROJECT_VERSION = 148;/.test(pbx), "Xcode project version is 148");
-assert(!/CURRENT_PROJECT_VERSION = 147;/.test(pbx), "Xcode project version is not 147");
+assert(/MARKETING_VERSION = 1\.2\.11;/.test(pbx), "Xcode marketing version is 1.2.11");
+assert(!/MARKETING_VERSION = 1\.2\.10;/.test(pbx), "Xcode marketing version is not 1.2.10");
+assert(/CURRENT_PROJECT_VERSION = 156;/.test(pbx), "Xcode project version is 156");
+assert(!/CURRENT_PROJECT_VERSION = 155;/.test(pbx), "Xcode project version is not 155");
 // v1.1.28: pure logic lives in tested shared modules that load before content.js.
 ["shared/metrics-days.js", "shared/graphql-timeline.js"].forEach((file) => {
   assert(

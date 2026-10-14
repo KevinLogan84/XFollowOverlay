@@ -16,6 +16,18 @@ typealias PlatformViewController = NSViewController
 
 let extensionBundleIdentifier = "com.kevinlogan.xfollowoverlay.Extension"
 
+#if os(macOS)
+/// The setup page's laid-out height, reported as this view's fitting size.
+class SetupContentView: NSView {
+    var contentFittingHeight: CGFloat = 0
+
+    override var fittingSize: NSSize {
+        let height = contentFittingHeight > 0 ? contentFittingHeight : super.fittingSize.height
+        return NSSize(width: 420, height: height)
+    }
+}
+#endif
+
 class ViewController: PlatformViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
 
     @IBOutlet var webView: WKWebView!
@@ -30,6 +42,8 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKUIDelegate
 
 #if os(macOS)
     private var vibrancyView: NSVisualEffectView?
+    /// Laid-out height of the setup page. Zero until the Mac page has shown.
+    var contentFittingHeight: CGFloat = 0
 #endif
 
     override func viewDidLoad() {
@@ -53,7 +67,10 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKUIDelegate
 #endif
 
 #if os(macOS)
-        // Transparent WKWebView so the vibrancy shows through
+        // Transparent WKWebView so the vibrancy shows through.
+        // The mask keeps the page filling the window when the fitting height changes.
+        self.webView.translatesAutoresizingMaskIntoConstraints = true
+        self.webView.autoresizingMask = [.width, .height]
         self.webView.setValue(false, forKey: "drawsBackground")
         self.webView.wantsLayer = true
         self.webView.layer?.backgroundColor = NSColor.clear.cgColor
@@ -115,21 +132,74 @@ class ViewController: PlatformViewController, WKNavigationDelegate, WKUIDelegate
 #if os(iOS)
         callPageShow("'ios'")
 #elseif os(macOS)
-        callPageShow("'mac'")
+        showMacPageAndFit("'mac'")
 
         SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: extensionBundleIdentifier) { (state, error) in
             guard let state = state, error == nil else { return }
 
             DispatchQueue.main.async {
                 if #available(macOS 13, *) {
-                    self.callPageShow("'mac', \(state.isEnabled), true")
+                    self.showMacPageAndFit("'mac', \(state.isEnabled), true")
                 } else {
-                    self.callPageShow("'mac', \(state.isEnabled), false")
+                    self.showMacPageAndFit("'mac', \(state.isEnabled), false")
                 }
             }
         }
 #endif
     }
+
+#if os(macOS)
+    /// Measure after show(), once the Mac-only steps and actions are visible.
+    func remeasureSetupWindow() {
+        guard isViewLoaded else { return }
+        let script = measuredShellHeightScript(showing: nil)
+        webView.evaluateJavaScript(script) { result, _ in
+            self.storeMeasuredHeight(result)
+        }
+    }
+
+    private func showMacPageAndFit(_ argumentList: String) {
+        let script = measuredShellHeightScript(showing: argumentList)
+        webView.evaluateJavaScript(script) { result, _ in
+            self.storeMeasuredHeight(result)
+        }
+    }
+
+    private func measuredShellHeightScript(showing argumentList: String?) -> String {
+        let show = argumentList.map { "if (typeof show==='function') show(\($0));" } ?? ""
+        return """
+        (function(){
+          \(show)
+          var shell = document.querySelector('.shell');
+          if (!document.body || document.body.clientWidth < 200 || !document.body.classList.contains('platform-mac') || !shell) return 0;
+          return Math.ceil(shell.getBoundingClientRect().height);
+        })()
+        """
+    }
+
+    private func storeMeasuredHeight(_ result: Any?) {
+        guard let height = positiveHeight(result) else { return }
+        contentFittingHeight = height
+        (view as? SetupContentView)?.contentFittingHeight = height
+        guard let window = view.window else { return }
+        (NSApp.delegate as? AppDelegate)?.fitSetupWindow(window)
+    }
+
+    private func positiveHeight(_ value: Any?) -> CGFloat? {
+        let number: Double?
+        if let raw = value as? NSNumber {
+            number = raw.doubleValue
+        } else if let raw = value as? Double {
+            number = raw
+        } else if let raw = value as? Int {
+            number = Double(raw)
+        } else {
+            number = nil
+        }
+        guard let height = number, height > 0, height.isFinite else { return nil }
+        return CGFloat(height)
+    }
+#endif
 
     /// A missing or throwing show() is a page bug, not a reason to quit.
     private func callPageShow(_ argumentList: String) {
