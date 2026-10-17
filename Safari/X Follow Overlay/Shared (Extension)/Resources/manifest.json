@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "X Follow Overlay",
-  "version": "1.2.11",
+  "version": "1.2.12",
   "description": "Relationship dots on x.com: mutual, you follow, follows you, and was mutual.",
   "icons": {
     "16": "icons/icon16.png",

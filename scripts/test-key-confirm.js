@@ -239,6 +239,10 @@ assert(worker.includes("keyRelayBusy"), "a relayed key test cannot overlap itsel
 assert(worker.includes("keyTabOpening"), "opening the key tab cannot overlap itself");
 assert(worker.includes("wipeSavedApiKeys"), "the worker wipes saved keys once");
 assert(popupJs.includes("wipeSavedApiKeys"), "the toolbar popup wipes saved keys once");
+assert(!popupJs.includes("A sync is already running on that tab."), "the popup has no busy sentence");
+assert(!popupJs.includes("syncBusyNote") && !popupJs.includes("syncBusyLeft"), "the popup has no busy-sentence hold");
+assert(popupJs.includes("syncKickPrefer"), "the popup kick labels the path just tapped");
+assert(content.includes("busy: true"), "a live crawl refuses a second sync from the popup");
 assert(content.includes("keyProbeDepth"), "a stored-key probe cannot re-enter");
 assert(content.includes('message: "Key check already running."'), "a nested key check does not fetch");
 assert(content.includes("wipeSavedApiKeys"), "content wipes saved keys once on first run");
@@ -501,6 +505,18 @@ function postFrame(tracked, panel, action) {
   });
 }
 
+async function openPanel(tracked) {
+  await wait(700);
+  if (tracked.page.errors.length) throw tracked.page.errors[0];
+  const btn = tracked.page.doc.querySelector(".xfo-rail-btn");
+  assert(btn, "people icon is in the rail");
+  btn.dispatch("click");
+  await wait(80);
+  const panel = tracked.page.doc.getElementById("xfo-rail-panel");
+  assert(panel && panel.classList.contains("xfo-open"), "people icon opens the panel");
+  return panel;
+}
+
 function signIn(page) {
   page.doc.cookie = "ct0=csrf-token; twid=" + encodeURIComponent('"u=123456789"');
 }
@@ -565,6 +581,24 @@ const migrated = trackedPage({
     syncError: "leave-me"
   }
 });
+const liveSync = trackedPage({
+  origin: "https://x.com",
+  store: {
+    lastSyncAt: Date.now(),
+    followingTotal: 1575,
+    followersTotal: 1175,
+    selfUsername: "kevin_logan",
+    syncStatus: "syncing",
+    syncStartedAt: Date.now(),
+    lastSyncProgressAt: Date.now(),
+    syncProgressLabel: "Syncing followers… 1210",
+    syncPrefer: "session",
+    syncProgressCount: 1210,
+    syncProgressSide: "followers"
+  }
+});
+const formThenFree = trackedPage({ origin: "https://x.com", store: {} });
+const formThenPopup = trackedPage({ origin: "https://x.com", store: {} });
 const ping = { apiFetches: 0, maxStack: 0, stack: 0 };
 const pingPage = trackedPage({
   origin: "https://x.com",
@@ -726,7 +760,158 @@ function bootSavedKeyFrame() {
   };
 }
 
+function bootBusyPopup(extra) {
+  const doc = createDocument();
+  const bodyHtml = popupHtml.slice(popupHtml.indexOf("<body>") + 6, popupHtml.indexOf("<script"));
+  doc.body.innerHTML = bodyHtml;
+  const form = doc.getElementById("keys-form");
+  const named = {};
+  form.querySelectorAll("input, textarea, button, select").forEach((el) => {
+    const name = el.getAttribute("name");
+    if (name) named[name] = el;
+  });
+  form.elements = named;
+  const store = {
+    [Api.API_KEY_WIPE_MARKER]: Api.API_KEY_WIPE,
+    lastSyncAt: Date.now(),
+    syncStatus: "syncing",
+    syncStartedAt: Date.now(),
+    lastSyncProgressAt: Date.now(),
+    syncProgressLabel: "Syncing followers… 1210",
+    syncPrefer: "session"
+  };
+  if (extra) Object.assign(store, extra);
+  const intervals = [];
+  const storageListeners = [];
+  const messages = [];
+  const errors = [];
+  function ipc(value) {
+    return new Promise((resolve) => setTimeout(() => resolve(value), 2));
+  }
+  const ctx = {
+    console: console,
+    setTimeout: setTimeout,
+    clearTimeout: clearTimeout,
+    setInterval(fn) {
+      intervals.push(fn);
+      return intervals.length;
+    },
+    clearInterval() {},
+    Promise: Promise,
+    Date: Date,
+    Math: Math,
+    JSON: JSON,
+    URL: URL,
+    Number: Number,
+    String: String,
+    Object: Object,
+    Array: Array,
+    document: doc,
+    browser: undefined,
+    chrome: {
+      storage: {
+        local: {
+          async get(keys) {
+            const out = {};
+            const list = Array.isArray(keys) ? keys : typeof keys === "string" ? [keys] : [];
+            list.forEach((key) => {
+              if (key in store) out[key] = store[key];
+            });
+            return ipc(out);
+          },
+          async set(obj) {
+            Object.assign(store, obj);
+          },
+          async remove(keys) {
+            (Array.isArray(keys) ? keys : [keys]).forEach((key) => delete store[key]);
+          }
+        },
+        onChanged: {
+          addListener(fn) {
+            storageListeners.push(fn);
+          }
+        }
+      },
+      tabs: {
+        async query() {
+          return ipc([{ id: 7, url: "https://x.com/home" }]);
+        },
+        async sendMessage(_tabId, msg) {
+          messages.push(msg);
+          if (msg && msg.type === "XFO_SESSION") return ipc({ signedIn: true });
+          if (msg && msg.type === "XFO_TEST_KEYS") return ipc({ ok: true });
+          if (msg && msg.type === "XFO_RUN_SYNC") return ipc({ ok: true, started: false, busy: true });
+          return ipc({});
+        },
+        create() {}
+      }
+    }
+  };
+  ctx.window = ctx;
+  ctx.globalThis = ctx;
+  ctx.self = ctx;
+  vm.createContext(ctx);
+  ["shared/sync-state.js", "shared/x-api.js", "shared/key-confirm.js", "popup/popup.js"].forEach((file) => {
+    try {
+      vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), ctx, { filename: file });
+    } catch (err) {
+      errors.push(err);
+    }
+  });
+  return { doc: doc, store: store, intervals: intervals, storageListeners: storageListeners, messages: messages, errors: errors };
+}
+
+async function untilPopup(fn, label) {
+  for (let i = 0; i < 40; i++) {
+    if (fn()) return;
+    await wait(15);
+  }
+  throw new Error(typeof label === "function" ? label() : label);
+}
+
+function runningPathButtons(popup) {
+  const free = popup.doc.getElementById("run-sync");
+  const api = popup.doc.getElementById("run-sync-api");
+  return free &&
+    api &&
+    free.textContent === "Syncing…" &&
+    free.disabled === true &&
+    api.textContent === "Sync with API keys" &&
+    api.disabled === true;
+}
+
 Promise.all([
+  (async () => {
+    const popup = bootBusyPopup();
+    const status = popup.doc.getElementById("sync-status");
+    await untilPopup(() => popup.doc.getElementById("run-sync").dataset.tabId, "popup never found the x.com tab");
+    if (popup.errors.length) throw popup.errors[0];
+    assert(runningPathButtons(popup), "a live free crawl shows Syncing only on Sync free");
+    popup.doc.getElementById("xfo-bearer").value = BEARER;
+    popup.doc.getElementById("keys-form").dispatch("submit");
+    await untilPopup(
+      () => popup.messages.some((msg) => msg && msg.type === "XFO_RUN_SYNC"),
+      "Save and Sync asks the tab to start"
+    );
+    await untilPopup(
+      () => runningPathButtons(popup),
+      () => "a refused second path leaves only Sync free on Syncing, saw " +
+        popup.doc.getElementById("run-sync").textContent +
+        " / " +
+        popup.doc.getElementById("run-sync-api").textContent
+    );
+    if (popup.errors.length) throw popup.errors[0];
+    assert(
+      popup.messages.some((msg) => msg && msg.type === "XFO_RUN_SYNC" && msg.prefer === "api"),
+      "Save and Sync still asks for the API path"
+    );
+    assert(
+      !String(status.textContent).includes("already running"),
+      "a refused second path does not add a status sentence"
+    );
+    popup.intervals.forEach((fn) => fn());
+    assert(runningPathButtons(popup), "the one-second refresh keeps Syncing on the running path only");
+  })(),
   (async () => {
     const opened = await openApi(unverified);
     const frame = opened.panel.querySelector("[data-xfo-key-frame]");
@@ -935,6 +1120,59 @@ Promise.all([
     assert(pingPage.live().xApiBearer === BEARER, "the ping-pong probe leaves the saved bearer in place");
   })(),
   (async () => {
+    const panel = await openPanel(liveSync);
+    const free = panel.querySelector('[data-xfo-sync="free"]');
+    const apiBtn = panel.querySelector('[data-xfo-sync="api"]');
+    const frame = panel.querySelector("[data-xfo-key-frame]");
+    const err = panel.querySelector("[data-xfo-err]");
+    assert(err && err.textContent.indexOf("Syncing followers") === 0, "the crawl still reports follower progress");
+    assert(free && free.textContent === "Syncing…", "a free crawl shows Syncing on Sync free");
+    assert(free.disabled === true, "Sync free stays disabled while it runs");
+    assert(apiBtn && apiBtn.textContent === "Sync with API keys", "Sync with API keys is not also Syncing");
+    assert(apiBtn.disabled === true, "the API button cannot start a second path");
+    assert(frame && frame.hidden === true, "the bearer form stays closed during the crawl");
+    apiBtn.dispatch("click");
+    await wait(40);
+    const again = panel.querySelector("[data-xfo-key-frame]");
+    assert(again && again.hidden === true, "clicking API keys during a crawl does not open the form");
+    assert(
+      !String(again.getAttribute("src") || "").includes("keys-frame.html"),
+      "the key frame is not loaded during a crawl"
+    );
+  })(),
+  (async () => {
+    const opened = await openApi(formThenFree);
+    const frame = opened.panel.querySelector("[data-xfo-key-frame]");
+    assert(frame && frame.hidden !== true, "no saved token still opens the form");
+    const free = opened.panel.querySelector('[data-xfo-sync="free"]');
+    free.dispatch("click");
+    await wait(150);
+    const after = opened.panel.querySelector("[data-xfo-key-frame]");
+    assert(after && after.hidden === true, "Sync free closes the bearer form");
+    const apiBtn = opened.panel.querySelector('[data-xfo-sync="api"]');
+    assert(apiBtn && apiBtn.textContent !== "Syncing…", "Sync free does not leave the API button on Syncing");
+  })(),
+  (async () => {
+    const opened = await openApi(formThenPopup);
+    const frame = opened.panel.querySelector("[data-xfo-key-frame]");
+    assert(frame && frame.hidden !== true, "the form is open before the popup sync");
+    signIn(formThenPopup.page);
+    let response = null;
+    formThenPopup.page.runtimeListeners.forEach((fn) => {
+      fn({ type: "XFO_RUN_SYNC", prefer: "session" }, { id: "xfo-test" }, (res) => {
+        response = res;
+      });
+    });
+    await wait(200);
+    assert(response && response.ok === true && response.started === true, "popup Sync free starts the crawl");
+    const after = opened.panel.querySelector("[data-xfo-key-frame]");
+    assert(after && after.hidden === true, "popup Sync free closes the bearer form");
+    assert(
+      formThenPopup.writes.some((obj) => obj.syncStatus === "syncing"),
+      "popup Sync free writes a syncing status"
+    );
+  })(),
+  (async () => {
     const frame = bootSavedKeyFrame();
     await wait(80);
     if (frame.errors.length) throw frame.errors[0];
@@ -976,6 +1214,9 @@ Promise.all([
     probeOk.page.finish();
     migrated.page.finish();
     pingPage.page.finish();
+    liveSync.page.finish();
+    formThenFree.page.finish();
+    formThenPopup.page.finish();
     console.log("All key-confirm tests passed.");
   })
   .catch((err) => {
@@ -990,6 +1231,9 @@ Promise.all([
       probeOk.page.finish();
       migrated.page.finish();
       pingPage.page.finish();
+      liveSync.page.finish();
+      formThenFree.page.finish();
+      formThenPopup.page.finish();
     } catch (e) {
       /* already torn down */
     }

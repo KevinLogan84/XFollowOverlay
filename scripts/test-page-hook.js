@@ -79,6 +79,7 @@ const context = {
   location: { origin: "https://x.com" },
   XMLHttpRequest: function () {},
   Promise: Promise,
+  WeakSet: WeakSet,
   Date: Date,
   URL: URL,
   URLSearchParams: URLSearchParams,
@@ -132,12 +133,56 @@ function send(data) {
   });
   await new Promise((r) => setTimeout(r, 20));
   const tapped = messages.find((m) => m.op === "Following" && !m.type);
+  const ownRelations = messages.filter((m) => m.type === "XFO_RELATIONS");
   const result = messages.find((m) => m.type === "XFO_GQL_RESULT");
-  assert(tapped && tapped.json, "hook still taps Following responses");
+  assert(!tapped, "our own Following page is not posted a second time");
+  assert(ownRelations.length === 0, "our own Following page is not harvested again");
   assert(result, "allowed Following op replies");
   assert(result.id === 8, "echoes request id");
   assert(result.ok === true, "Following op succeeds in the stub");
   assert(result.json && result.json.data, "returns JSON");
+
+  messages.length = 0;
+  const previousResponder = responder;
+  responder = function () {
+    const json = {
+      data: {
+        user: {
+          result: {
+            rest_id: "42",
+            core: { screen_name: "Ada" },
+            relationship_perspectives: { following: true, followed_by: false }
+          }
+        }
+      }
+    };
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(json)),
+      clone() {
+        return this;
+      },
+      json: () => Promise.resolve(json),
+      headers: { get: () => null }
+    });
+  };
+  send({
+    source: "xfo-content",
+    type: "XFO_GQL",
+    id: 12,
+    queryId: "abc",
+    operationName: "UserTweets",
+    variables: { userId: "1", count: 20 },
+    features: {}
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  const ownTweets = messages.find((m) => m.type === "XFO_RELATIONS");
+  assert(
+    ownTweets && ownTweets.users.some((u) => u.id === "42" && u.h === "ada"),
+    "our own UserTweets call is still harvested"
+  );
+  responder = previousResponder;
 
   messages.length = 0;
   const fetches = [];

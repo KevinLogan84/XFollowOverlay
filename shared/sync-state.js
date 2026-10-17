@@ -207,6 +207,92 @@
     return showSyncing(opts);
   }
 
+  /**
+   * One live sync paints "Syncing…" on its own button only.
+   * The other button keeps its name, so a free crawl cannot look
+   * like the API crawl is running too.
+   */
+  function pathButtonText(opts) {
+    opts = opts || {};
+    var apiChoice = !!opts.apiChoice;
+    var prefer = opts.prefer === "api" ? "api" : "session";
+    var mine = apiChoice ? "api" : "session";
+    if (opts.pulsing) {
+      if (prefer === mine) return "Syncing…";
+      return apiChoice ? "Sync with API keys" : "Sync free";
+    }
+    if (opts.stuck) return "Retry sync";
+    return apiChoice ? "Sync with API keys" : "Sync free";
+  }
+
+  function pathButtonSyncing(opts) {
+    opts = opts || {};
+    if (!opts.pulsing) return false;
+    var prefer = opts.prefer === "api" ? "api" : "session";
+    var mine = opts.apiChoice ? "api" : "session";
+    return prefer === mine;
+  }
+
+  /**
+   * A live page-by-page sync owns the tab. A second click must not
+   * open the key form, probe api.x.com, or start the other path.
+   * A silent run can still be replaced by Retry sync.
+   */
+  function secondSyncAction(opts) {
+    opts = opts || {};
+    if (!opts.inFlight) return "start";
+    if (opts.progressing) return "keep";
+    return "replace";
+  }
+
+  /** The bearer form stays closed while a sync is paging. */
+  function keyFormDuringSync(opts) {
+    opts = opts || {};
+    if (opts.busy) return "hide";
+    return opts.showForm ? "open" : "hide";
+  }
+
+  var LIGHT_STORAGE_KEYS = {
+    syncProgressLabel: 1,
+    lastSyncProgressAt: 1,
+    syncBackoffUntil: 1,
+    syncProgressCount: 1,
+    syncProgressSide: 1,
+    syncNote: 1,
+    syncCheckpoint: 1
+  };
+
+  var RAIL_HEAVY_KEYS = {
+    following: 1,
+    followers: 1,
+    followingIds: 1,
+    followerIds: 1
+  };
+
+  /**
+   * Progress ticks and cursor checkpoints are not a new follow list.
+   * Re-reading every handle on each of them hung Safari during paging.
+   */
+  function lightStorageChange(changes) {
+    if (!changes || typeof changes !== "object") return false;
+    var keys = Object.keys(changes);
+    if (!keys.length) return false;
+    for (var i = 0; i < keys.length; i++) {
+      if (!LIGHT_STORAGE_KEYS[keys[i]]) return false;
+    }
+    return true;
+  }
+
+  function railStorageKeys(keys, syncing) {
+    var list = asList(keys);
+    if (!syncing) return list.slice();
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      if (!RAIL_HEAVY_KEYS[list[i]]) out.push(list[i]);
+    }
+    return out;
+  }
+
   function shouldHardExpire(status, startedAt, now, lastProgressAt, progressLabel) {
     if (!isSyncing(status)) return false;
     var beat = Number(lastProgressAt) || Number(startedAt) || 0;
@@ -355,6 +441,12 @@
     showSyncing: showSyncing,
     buttonText: buttonText,
     buttonDisabled: buttonDisabled,
+    pathButtonText: pathButtonText,
+    pathButtonSyncing: pathButtonSyncing,
+    secondSyncAction: secondSyncAction,
+    keyFormDuringSync: keyFormDuringSync,
+    lightStorageChange: lightStorageChange,
+    railStorageKeys: railStorageKeys,
     shouldHardExpire: shouldHardExpire,
     expirePatch: expirePatch,
     asList: asList,

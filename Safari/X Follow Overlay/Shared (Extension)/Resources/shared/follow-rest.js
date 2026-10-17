@@ -1084,6 +1084,22 @@
     return age >= 0 && age < (maxAgeMs || CHECKPOINT_MAX_AGE_MS);
   }
 
+  /**
+   * The same cursor and the same counts were already written.
+   * The pre-request checkpoint of a page is that write; skipping it
+   * keeps a thousand-account crawl from storing the list twice a page.
+   */
+  function graphqlCheckpointSame(saved, next) {
+    if (!saved || !next) return false;
+    return (
+      (saved.cursor || null) === (next.cursor || null) &&
+      String(saved.side || "") === String(next.side || "") &&
+      String(saved.userId || "") === String(next.userId || "") &&
+      (Number(saved.userCount) || 0) === (Number(next.userCount) || 0) &&
+      (Number(saved.idCount) || 0) === (Number(next.idCount) || 0)
+    );
+  }
+
   function resumeGraphqlCheckpoint(cp, side, userId, now) {
     if (!checkpointFresh(cp, now)) return null;
     if (!cp || cp.path !== "graphql") return null;
@@ -1162,6 +1178,7 @@
     collectViaV2: collectViaV2,
     tryRestFollowLists: tryRestFollowLists,
     checkpointFresh: checkpointFresh,
+    graphqlCheckpointSame: graphqlCheckpointSame,
     resumeGraphqlCheckpoint: resumeGraphqlCheckpoint
   };
 

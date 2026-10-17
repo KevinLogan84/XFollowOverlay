@@ -575,4 +575,109 @@ const t0 = 1_000_000;
   assert(/prefers-reduced-motion:\s*reduce/.test(railCss), "rail pulse respects reduced motion");
 }
 
+{
+  const session = { pulsing: true, stuck: false, prefer: "session" };
+  assert(
+    Sync.pathButtonText(Object.assign({ apiChoice: false }, session)) === "Syncing…",
+    "a free crawl labels only Sync free as Syncing"
+  );
+  assert(
+    Sync.pathButtonText(Object.assign({ apiChoice: true }, session)) === "Sync with API keys",
+    "a free crawl leaves the API button named"
+  );
+  assert(
+    Sync.pathButtonSyncing(Object.assign({ apiChoice: false }, session)) === true,
+    "the free button is the one pulsing"
+  );
+  assert(
+    Sync.pathButtonSyncing(Object.assign({ apiChoice: true }, session)) === false,
+    "the API button does not pulse during a free crawl"
+  );
+  const api = { pulsing: true, stuck: false, prefer: "api" };
+  assert(
+    Sync.pathButtonText(Object.assign({ apiChoice: true }, api)) === "Syncing…",
+    "an API crawl labels only the API button as Syncing"
+  );
+  assert(
+    Sync.pathButtonText(Object.assign({ apiChoice: false }, api)) === "Sync free",
+    "an API crawl leaves Sync free named"
+  );
+  assert(Sync.secondSyncAction({ inFlight: false, progressing: false }) === "start", "an idle tab can start");
+  assert(
+    Sync.secondSyncAction({ inFlight: true, progressing: true }) === "keep",
+    "a live crawl keeps the tab; the other path does not start"
+  );
+  assert(
+    Sync.secondSyncAction({ inFlight: true, progressing: false }) === "replace",
+    "a silent crawl can still be replaced"
+  );
+  assert(
+    Sync.keyFormDuringSync({ busy: true, showForm: true }) === "hide",
+    "the bearer form stays closed while a sync is paging"
+  );
+  assert(
+    Sync.keyFormDuringSync({ busy: false, showForm: true }) === "open",
+    "the bearer form still opens when no sync is running"
+  );
+  assert(
+    Sync.keyFormDuringSync({ busy: false, showForm: false }) === "hide",
+    "a saved token still skips the form"
+  );
+  assert(
+    Sync.lightStorageChange({
+      syncProgressLabel: {},
+      lastSyncProgressAt: {},
+      syncCheckpoint: {}
+    }) === true,
+    "progress ticks and checkpoints are not a full list reload"
+  );
+  assert(
+    Sync.lightStorageChange({ syncProgressLabel: {}, following: {} }) === false,
+    "a new follow list still reloads the panel"
+  );
+  assert(Sync.lightStorageChange({}) === false, "an empty change is not a progress tick");
+  const slim = Sync.railStorageKeys(
+    ["following", "followers", "followingIds", "followerIds", "syncStatus", "syncPrefer"],
+    true
+  );
+  assert(slim.indexOf("following") === -1 && slim.indexOf("followerIds") === -1, "a live crawl does not re-read follow lists");
+  assert(slim.indexOf("syncStatus") !== -1 && slim.indexOf("syncPrefer") !== -1, "a live crawl still reads status");
+  assert(
+    Sync.railStorageKeys(["following", "syncStatus"], false).indexOf("following") !== -1,
+    "an idle panel still reads the stored lists"
+  );
+}
+
+{
+  const content = fs.readFileSync(path.join(__dirname, "../content/content.js"), "utf8");
+  const hook = fs.readFileSync(path.join(__dirname, "../content/page-hook.js"), "utf8");
+  assert(content.includes("pathButtonText"), "the rail labels only the active sync button");
+  assert(content.includes("syncPathActive"), "a second sync path is refused while one is live");
+  assert(content.includes("keyFormDuringSync"), "the rail asks before opening the key form during sync");
+  assert(content.includes("lightStorageChange"), "progress writes do not re-read the follow lists");
+  assert(content.includes("railStorageKeys"), "the open panel skips list reads during a crawl");
+  assert(!content.includes("pageGraphUsers"), "follower pages are not copied into an unused set");
+  assert(content.includes("graphqlCheckpointSame"), "a repeat checkpoint of the same page is skipped");
+  assert(/hideKeyConfirm\(p\)/.test(content), "starting free sync closes the key form");
+  assert(/hideKeyConfirm\(\)/.test(content), "a new sync run closes the bearer form");
+  assert(
+    /if\s*\(\s*syncPathActive\(\)\s*\)\s*hideKeyConfirm\(/.test(content),
+    "a live crawl closes the form when the panel refreshes"
+  );
+  assert(content.includes("railListReadPaused"), "other tabs skip list reads while a crawl is stored");
+  assert(
+    /function railListReadPaused\(\) \{[\s\S]*?isSyncing\(status\)/.test(content),
+    "the list skip follows the stored syncing status, not only this tab"
+  );
+  assert(
+    /wantRel && !ownFollowList/.test(hook),
+    "only our own follow-list calls skip passive harvest"
+  );
+  assert(
+    !/Our wrapper still taps Following\/Followers/.test(hook),
+    "the hook comment no longer says every Following page is tapped"
+  );
+  assert(!hook.includes("function tap("), "the hook does not post the full follow payload a second time");
+}
+
 console.log("All sync-state tests passed.");

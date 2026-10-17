@@ -199,18 +199,6 @@
     return out.length ? out : null;
   }
 
-  function tap(url, json) {
-    var m = String(url || "").match(
-      /\/i\/api\/graphql\/[^/]+\/(Following|Followers)(?:\?|$)/
-    );
-    if (!m || !json) return;
-    try {
-      window.postMessage({ source: "xfo-page-hook", op: m[1], json: json }, MSG_ORIGIN);
-    } catch (e) {
-      /* ignore */
-    }
-  }
-
   // Passive relationship capture. Every user object in X's own responses
   // says whether the viewer follows that account and whether it follows
   // back (relationship_perspectives.* on 2025+ payloads, legacy.* before).
@@ -353,6 +341,10 @@
     return RELATION_URL.test(String(url || ""));
   }
 
+  function isFollowListUrl(url) {
+    return /\/i\/api\/graphql\/[^/?#]+\/(Following|Followers)(?:\?|$)/.test(String(url || ""));
+  }
+
   // Rate-limit budget. X answers every GraphQL call with the window it
   // shares with our activity pump (x-rate-limit-*). Report those for the
   // ops the pump spends from — X's own profile loads included — so the
@@ -413,7 +405,6 @@
       var own = !!(ownInits && init && ownInits.has(init));
       learnFromUrl(url);
       if (!own) learnContract(url, init);
-      var isFollowList = /\/i\/api\/graphql\/[^/]+\/(Following|Followers)/.test(url);
       var wantRel = wantsRelations(url);
       var body = init && typeof init.body === "string" ? init.body : null;
       return origFetch.apply(this, arguments).then(function (res) {
@@ -422,14 +413,19 @@
             return headerVal(res, name);
           });
         }
-        if ((isFollowList || wantRel) && res && res.ok && !responseTooBig(res)) {
+        // Sync already receives its own Followers/Following body as
+        // XFO_GQL_RESULT. Cloning that page parsed it a second time and
+        // posted it back onto the main thread. A crawl past a thousand
+        // followers hung the x.com process. Our other GraphQL calls, and
+        // X's own responses, are still harvested.
+        var ownFollowList = own && isFollowListUrl(url);
+        if (wantRel && !ownFollowList && res && res.ok && !responseTooBig(res)) {
           try {
             res
               .clone()
               .json()
               .then(function (j) {
-                if (isFollowList) tap(url, j);
-                if (wantRel) tapRelations(url, body, j);
+                tapRelations(url, body, j);
               })
               .catch(function () {});
           } catch (e) {
@@ -459,15 +455,13 @@
           return xhr.getResponseHeader(name);
         });
       }
-      var isFollowList = /\/i\/api\/graphql\/[^/]+\/(Following|Followers)/.test(url);
       var wantRel = wantsRelations(url);
-      if (!isFollowList && !wantRel) return;
+      if (!wantRel) return;
       if (this.responseType && this.responseType !== "text") return;
       if (this.status && (this.status < 200 || this.status >= 300)) return;
       try {
         var json = JSON.parse(this.responseText);
-        if (isFollowList) tap(url, json);
-        if (wantRel) tapRelations(url, this.__xfoBody, json);
+        tapRelations(url, this.__xfoBody, json);
       } catch (e) {
         /* ignore */
       }
@@ -523,8 +517,8 @@
     }
 
     // Call the live window.fetch so a later X wrapper can add
-    // x-client-transaction-id. Our wrapper still taps Following/Followers.
-    // Mark this init so the wrapper does not learn our own contract back.
+    // x-client-transaction-id. Mark this init so we skip harvesting our
+    // own Following/Followers pages and do not learn our contract back.
     if (ownInits) ownInits.add(init);
     var fetchFn = window.fetch;
     return fetchFn

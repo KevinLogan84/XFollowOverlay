@@ -23,6 +23,7 @@
   var syncSnap = {};
   var keyed = false;
   var syncKick = false;
+  var syncKickPrefer = null;
   var storedKeys = {};
   var keyProbeMessage = "";
 
@@ -113,6 +114,7 @@
       "syncBackoffUntil",
       "syncProgressCount",
       "syncProgressSide",
+      "syncPrefer",
       "hideRateLimitKeysHint",
       "keysVerifiedAt",
       "apiSyncError"
@@ -162,13 +164,28 @@
       if (syncAge && Sync && Sync.lastUpdateText) {
         syncAge.textContent = Sync.lastUpdateText(syncSnap.lastSyncProgressAt, now);
       }
-      runSyncBtn.textContent = "Syncing…";
+      var prefer = syncKickPrefer
+        ? syncKickPrefer
+        : syncSnap.syncPrefer === "api"
+          ? "api"
+          : "session";
+      var freeOpts = { pulsing: true, apiChoice: false, prefer: prefer };
+      var apiOpts = { pulsing: true, apiChoice: true, prefer: prefer };
+      runSyncBtn.textContent =
+        Sync && Sync.pathButtonText ? Sync.pathButtonText(freeOpts) : "Syncing…";
       runSyncBtn.disabled = true;
-      runSyncBtn.classList.add("is-syncing");
+      runSyncBtn.classList.toggle(
+        "is-syncing",
+        !Sync || !Sync.pathButtonSyncing || Sync.pathButtonSyncing(freeOpts)
+      );
       if (runSyncApiBtn) {
-        runSyncApiBtn.textContent = "Syncing…";
+        runSyncApiBtn.textContent =
+          Sync && Sync.pathButtonText ? Sync.pathButtonText(apiOpts) : "Syncing…";
         runSyncApiBtn.disabled = true;
-        runSyncApiBtn.classList.add("is-syncing");
+        runSyncApiBtn.classList.toggle(
+          "is-syncing",
+          !Sync || !Sync.pathButtonSyncing || Sync.pathButtonSyncing(apiOpts)
+        );
       }
     } else {
       var stuck = !!(Sync && Sync.isStuck && Sync.isStuck(ui));
@@ -241,18 +258,24 @@
       syncStatus.textContent = "Open x.com and sign in first.";
       return;
     }
-    syncKick = true;
-    renderSyncFace();
-    syncStatus.textContent = "Starting Sync on your x.com tab…";
+    var alreadyRunning = syncSnap.syncStatus === "syncing";
+    if (!alreadyRunning) {
+      syncKick = true;
+      syncKickPrefer = prefer === "api" ? "api" : "session";
+      renderSyncFace();
+      syncStatus.textContent = "Starting Sync on your x.com tab…";
+    }
     try {
       await api.tabs.sendMessage(tabId, { type: "XFO_RUN_SYNC", prefer: prefer });
     } catch (e) {
       syncKick = false;
+      syncKickPrefer = null;
       syncStatus.textContent = "Couldn’t reach x.com. Reload that tab and try again.";
       renderSyncFace();
       return;
     }
     syncKick = false;
+    syncKickPrefer = null;
     refresh();
   }
 
@@ -402,6 +425,7 @@
         changes.syncBackoffUntil ||
         changes.syncProgressCount ||
         changes.syncProgressSide ||
+        changes.syncPrefer ||
         changes.hideRateLimitKeysHint ||
         changes.syncError ||
         changes.lastSyncAt ||

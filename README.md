@@ -13,6 +13,8 @@ No account with us, no payment, and no API key required. Sync uses the x.com tab
 
 ![On-page panel: Following and Followers counts, Sync free, and Sync with API keys.](docs/on-page-panel.png)
 
+![Mid-sync panel: only the running sync says Syncing, Sync with API keys keeps its name, and the key form stays closed.](docs/sync-freeze-fix.png)
+
 ## Download
 
 [Download the latest Mac release](https://github.com/KevinLogan84/XFollowOverlay/releases/latest)
@@ -46,7 +48,7 @@ You can also open the extension’s toolbar button. It walks through the same th
 2. **Run Sync.** The extension reads follows from that signed-in tab. It does not need a key.
 3. Add **API keys** only if you want a faster sync. This step is optional.
 
-Big accounts sync slower. x.com limits how fast any signed-in tab can read follow lists. Leave the tab open. When X asks the extension to slow down, it waits and then continues.
+Only one sync runs at a time, so long follower syncs no longer freeze Safari or force-close the x.com tab. Big accounts sync slower. x.com limits how fast any signed-in tab can read follow lists. Leave the tab open. When X asks the extension to slow down, it waits and then continues.
 
 <a id="optional-keys"></a>
 ## Optional: your own API keys

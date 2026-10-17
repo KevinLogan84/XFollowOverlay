@@ -6,7 +6,7 @@
  */
 
 (() => {
-  const XFO_VERSION = "1.2.11";
+  const XFO_VERSION = "1.2.12";
   if (window.__xfoVersion === XFO_VERSION) return;
   if (typeof window.__xfoCleanup === "function") {
     try {
@@ -1393,6 +1393,32 @@
     return Date.now() - lastSyncProgressAt < 15000;
   }
 
+  /**
+   * This tab's crawl, or a crawl another tab already stored as syncing.
+   * The panel must not pull the full lists on the 1-second refresh either way.
+   */
+  function railListReadPaused() {
+    if (syncInFlight) return true;
+    const status =
+      lastFollowSnapshot && lastFollowSnapshot.syncStatus != null
+        ? lastFollowSnapshot.syncStatus
+        : cache.syncStatus;
+    return !!(Sync && typeof Sync.isSyncing === "function" && Sync.isSyncing(status));
+  }
+
+  /** A live crawl owns the tab. The other path must not start beside it. */
+  function syncPathActive() {
+    if (Sync && typeof Sync.secondSyncAction === "function") {
+      return (
+        Sync.secondSyncAction({
+          inFlight: !!syncInFlight,
+          progressing: syncStillProgressing()
+        }) === "keep"
+      );
+    }
+    return !!(syncInFlight && syncStillProgressing());
+  }
+
   function abortSyncRun() {
     syncGeneration += 1;
     if (syncAbort) {
@@ -1710,10 +1736,6 @@
    * page's window.fetch so X can attach the header. Sync now never
    * navigates to Following/Followers or scrolls those lists.
    */
-  const pageGraphUsers = {
-    Following: new Set(),
-    Followers: new Set()
-  };
   const pageGqlPending = new Map();
   const pageRestPending = new Map();
   let pageGqlSeq = 0;
@@ -1835,10 +1857,6 @@
       });
       return;
     }
-    const bucket = pageGraphUsers[d.op];
-    if (!bucket) return;
-    const parsed = walkGraphqlUsers(d.json);
-    for (let i = 0; i < parsed.users.length; i++) bucket.add(parsed.users[i]);
   };
   window.addEventListener("message", pageHookMessageHandler);
 
@@ -2674,9 +2692,25 @@
     pageSilentRetries = 0;
     const incState = incremental ? Incremental.createScan() : null;
 
+    let savedCheckpoint = null;
     async function checkpoint(nextCursor) {
       if (incremental) return;
+      const next = {
+        side: op,
+        userId: userId ? String(userId) : "",
+        cursor: nextCursor || null,
+        userCount: users.length,
+        idCount: asList(ids).length
+      };
+      if (
+        FollowRest &&
+        typeof FollowRest.graphqlCheckpointSame === "function" &&
+        FollowRest.graphqlCheckpointSame(savedCheckpoint, next)
+      ) {
+        return;
+      }
       await writeGraphqlCheckpoint(op, userId, users, nextCursor, ids);
+      savedCheckpoint = next;
     }
 
     while (pages < maxPages) {
@@ -3603,6 +3637,9 @@
       if (!force || syncStillProgressing()) return syncInFlight;
       abortSyncRun();
     }
+    // Popup Sync, the rate-limit retry, and a resumed silent crawl all
+    // enter here. The rail buttons are not the only way a run begins.
+    hideKeyConfirm();
     if (prefer === "api" || prefer === "session" || prefer === "free") {
       const normalized =
         Route && typeof Route.normalizePrefer === "function"
@@ -6018,7 +6055,9 @@
       tearDownDeadExtension();
       return;
     }
-    const storageKeys =
+    // A silent crawl can let the form open. Once it is paging again, close it.
+    if (syncPathActive()) hideKeyConfirm(panel);
+    const storageKeys = (
       (Sync && Sync.FOLLOW_STORAGE_KEYS) || [
         "following",
         "followers",
@@ -6034,12 +6073,17 @@
         "lastSyncProgressAt",
         "syncProgressLabel",
         "syncNote"
-      ];
+      ]
+    ).concat(["syncPrefer"]);
+    const readKeys =
+      Sync && typeof Sync.railStorageKeys === "function"
+        ? Sync.railStorageKeys(storageKeys, railListReadPaused())
+        : storageKeys;
     let data = lastFollowSnapshot || snapshotFromCache();
     let storageReadOk = true;
     try {
       const fresh = await withTimeout(
-        api.storage.local.get(storageKeys),
+        api.storage.local.get(readKeys),
         (Sync && Sync.STORAGE_MS) || 2000,
         "Read rail status"
       );
@@ -6236,17 +6280,36 @@
     }
     const pulsing = !!(Sync && Sync.showSyncing(ui));
     const syncDisabled = Sync ? Sync.buttonDisabled(ui) : syncing && !stuck;
+    if (!syncInFlight && data && data.syncPrefer && Route && typeof Route.normalizePrefer === "function") {
+      const normalized = Route.normalizePrefer(data.syncPrefer);
+      if (normalized) syncPrefer = normalized;
+    }
+    const buttonPrefer = syncPrefer === "api" ? "api" : "session";
     panel.querySelectorAll("[data-xfo-sync]").forEach((button) => {
       const apiChoice = button.getAttribute("data-xfo-sync") === "api";
+      const labelOpts = {
+        pulsing: pulsing,
+        stuck: stuck,
+        apiChoice: apiChoice,
+        prefer: buttonPrefer
+      };
       button.disabled = syncDisabled;
-      button.textContent = pulsing
-        ? "Syncing…"
-        : stuck
-          ? "Retry sync"
-          : apiChoice
-            ? "Sync with API keys"
-            : "Sync free";
-      button.classList.toggle("is-syncing", pulsing);
+      button.textContent =
+        Sync && typeof Sync.pathButtonText === "function"
+          ? Sync.pathButtonText(labelOpts)
+          : pulsing
+            ? "Syncing…"
+            : stuck
+              ? "Retry sync"
+              : apiChoice
+                ? "Sync with API keys"
+                : "Sync free";
+      button.classList.toggle(
+        "is-syncing",
+        Sync && typeof Sync.pathButtonSyncing === "function"
+          ? Sync.pathButtonSyncing(labelOpts)
+          : pulsing
+      );
     });
   }
 
@@ -6369,6 +6432,7 @@
           "click",
           async (e) => {
             stop(e);
+            if (syncBtn.disabled) return;
             const p = railPanelHost || document.getElementById("xfo-rail-panel") || panel;
             if (!isRailPanelOpen(p)) return;
             const choice = syncBtn.getAttribute("data-xfo-sync") === "api" ? "api" : "session";
@@ -6376,6 +6440,8 @@
               beginApiSyncFromRail(p, syncBtn);
               return;
             }
+            if (syncPathActive()) return;
+            hideKeyConfirm(p);
             ignoreRailCloseUntil = Date.now() + 4000;
             syncBtn.textContent = "Syncing…";
             syncBtn.disabled = true;
@@ -6758,6 +6824,10 @@
 
   async function beginApiSyncFromRail(panel, syncBtn) {
     if (!panel) return;
+    if (syncPathActive()) {
+      hideKeyConfirm(panel);
+      return;
+    }
     ignoreRailCloseUntil = Date.now() + 800;
     let keys = railKeyCache || {};
     let apiError = railApiSyncError || "";
@@ -6780,15 +6850,26 @@
       }
     }
     if (extensionDead) return;
+    if (syncPathActive()) {
+      hideKeyConfirm(panel);
+      return;
+    }
     const show =
       KeyConfirm && typeof KeyConfirm.showKeyForm === "function"
         ? KeyConfirm.showKeyForm({ hasKeys: userHasApiKeys, apiSyncError: apiError })
         : !userHasApiKeys;
-    if (show) {
+    const formDecision =
+      Sync && typeof Sync.keyFormDuringSync === "function"
+        ? Sync.keyFormDuringSync({ busy: syncPathActive(), showForm: show })
+        : show
+          ? "open"
+          : "hide";
+    if (formDecision === "open") {
       openRailKeyForm(panel);
       return;
     }
     hideKeyConfirm(panel);
+    if (syncPathActive()) return;
     if (syncBtn) {
       syncBtn.textContent = "Syncing…";
       syncBtn.disabled = true;
@@ -6880,6 +6961,12 @@
         if (data.action === "cancel") {
           hideKeyConfirm(host);
           return;
+        }
+        if (data.action === "use-free" || data.action === "use-saved" || data.action === "save-sync") {
+          if (syncPathActive()) {
+            hideKeyConfirm(host);
+            return;
+          }
         }
         if (data.action === "use-free") {
           startConfirmedSync("session");
@@ -7209,6 +7296,10 @@
       return true;
     }
     if (msg.type === "XFO_RUN_SYNC") {
+      if (syncPathActive()) {
+        sendResponse({ ok: true, started: false, busy: true });
+        return true;
+      }
       const prefer =
         msg.prefer === "api" || msg.prefer === "session" || msg.prefer === "free"
           ? msg.prefer
@@ -7285,7 +7376,10 @@
     if (changes.themePreference) {
       applyThemeToPanel(panel, changes.themePreference.newValue);
     }
-    if (isRailPanelOpen(panel)) {
+    if (
+      isRailPanelOpen(panel) &&
+      !(Sync && typeof Sync.lightStorageChange === "function" && Sync.lightStorageChange(changes))
+    ) {
       refreshRailPanel(panel).catch((err) => {
         if (extensionContextInvalidated(err) || extensionConnectionDead(err)) tearDownDeadExtension();
       });

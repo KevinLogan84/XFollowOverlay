@@ -935,6 +935,22 @@ function mockClient(handler) {
   );
   assert(Rest.listGapNote({ following: null, followers: null }, restLive) === "", "no counts, no note");
 
+  assert(
+    Rest.graphqlCheckpointSame(
+      { side: "Followers", userId: "9", cursor: "c1", userCount: 1210, idCount: 1210 },
+      { side: "Followers", userId: "9", cursor: "c1", userCount: 1210, idCount: 1210 }
+    ) === true,
+    "the same follower page is not written twice"
+  );
+  assert(
+    Rest.graphqlCheckpointSame(
+      { side: "Followers", userId: "9", cursor: "c1", userCount: 1210, idCount: 1210 },
+      { side: "Followers", userId: "9", cursor: "c2", userCount: 1300, idCount: 1300 }
+    ) === false,
+    "a new cursor is still checkpointed"
+  );
+  assert(Rest.graphqlCheckpointSame(null, { cursor: "c1", userCount: 1, idCount: 1 }) === false, "the first checkpoint is written");
+
   console.log("All follow-rest tests passed.");
   console.log(
     "Dry run 960/540: first sync " +
